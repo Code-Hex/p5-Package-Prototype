@@ -4,27 +4,8 @@ use warnings;
 
 our $VERSION = "0.01";
 
-sub generate {
-    my ($class, $refs, $klass) = @_;
-    $klass //= '__ANON__';
-    my $obj = bless $refs, $klass;
-    {
-        no strict 'refs';
-        for my $method (keys %$refs) {
-            if ($method !~ /\A_/) {
-                if (ref($refs->{$method}) =~ /CODE/) {
-                    # Create some methods
-                    *{"$klass::$method"} = delete $refs->{$method};
-                } else {
-                    # Create some attributes
-                    my $ref = delete $refs->{$method};
-                    *{"$klass::$method"} = sub { $ref };
-                }
-            }
-        }
-    }
-    return $obj;
-}
+use XSLoader;
+XSLoader::load(__PACKAGE__, $VERSION);
 
 1;
 __END__

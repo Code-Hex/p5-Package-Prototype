@@ -2,7 +2,10 @@ name = "Package-Prototype"
 # badges = ["travis"]
 authority="cpan:CODEHEX"
 
-module_maker="ModuleBuildTiny"
+module_maker="ModuleBuild"
 
-[Metadata]
-x_static_install = 1
+[build]
+build_class = "Module::Build::XSUtil"
+
+[XSUtil]
+needs_compiler_c99 = 1

@@ -1,9 +1,10 @@
 use strict;
 use Test::More;
+use Data::Dumper;
 
 use_ok 'Package::Prototype';
 
-my $proto = Package::Prototype->generate({
+my $proto = Package::Prototype->bless({
     foo => 10,
     bar => "Hello",
     baz => sub {
