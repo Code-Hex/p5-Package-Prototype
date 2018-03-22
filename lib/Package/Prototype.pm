@@ -14,7 +14,7 @@ __END__
 
 =head1 NAME
 
-Package::Prototype - It's new $module
+Package::Prototype - Super easily to create prototype object
 
 =head1 SYNOPSIS
 

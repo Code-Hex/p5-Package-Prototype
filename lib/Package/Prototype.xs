@@ -19,41 +19,8 @@ extern "C" {
 #define IsCodeRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVCV)
 #define WANT_ARRAY GIMME_V == G_ARRAY
 
-static void
-push_values(pTHX_ SV *retval)
-{
-    dSP;
-    if (WANT_ARRAY && IsArrayRef(retval)) {
-        AV *av  = (AV *)SvRV(retval);
-        I32 len = av_len(av) + 1;
-        EXTEND(SP, len);
-        for (I32 i = 0; i < len; i++){
-            SV **const svp = av_fetch(av, i, FALSE);
-            PUSHs(svp ? *svp : &PL_sv_undef);
-        }
-    } else if (WANT_ARRAY && IsHashRef(retval)) {
-        HV *hv = (HV *)SvRV(retval);
-        HE *he;
-        hv_iterinit(hv);
-        while ((he = hv_iternext(hv)) != NULL){
-            EXTEND(SP, 2);
-            PUSHs(hv_iterkeysv(he));
-            PUSHs(hv_iterval(hv, he));
-        }
-    } else {
-        XPUSHs(retval ? retval : &PL_sv_undef);
-    }
-    PUTBACK;
-}
-
-XS(XS_prototype_getter)
-{
-    dVAR; dXSARGS;
-    SV *retval = (SV *)CvXSUBANY(cv).any_ptr;
-    SP -= items; /* PPCODE */
-    PUTBACK;
-    push_values(aTHX_ retval);
-}
+XS(XS_prototype_method);
+XS(XS_prototype_getter);
 
 static GV *
 prototype_gv_pvn(pTHX_ HV *stash, const char *name, STRLEN len, U32 flags)
@@ -83,6 +50,15 @@ add_method(pTHX_ HV *stash, SV *method, CV *code, char *key, I32 keylen)
     hv_store(stash, key, keylen, (SV *)gv, 0);
 }
 
+static void
+add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
+{
+    char *key;
+    STRLEN keylen;
+    key = SvPV(method, keylen);
+    add_method(aTHX_ stash, method, code, key, keylen);
+}
+
 static CV *
 make_closure(pTHX_ SV *retval)
 {
@@ -90,6 +66,77 @@ make_closure(pTHX_ SV *retval)
     xsub = newXS(NULL /* anonymous */, XS_prototype_getter, __FILE__);
     CvXSUBANY(xsub).any_ptr = (void *)retval;
     return xsub;
+}
+
+static void
+push_values(pTHX_ SV *retval)
+{
+    dSP;
+    if (WANT_ARRAY && IsArrayRef(retval)) {
+        AV *av  = (AV *)SvRV(retval);
+        I32 len = av_len(av) + 1;
+        EXTEND(SP, len);
+        for (I32 i = 0; i < len; i++){
+            SV **const svp = av_fetch(av, i, FALSE);
+            PUSHs(svp ? *svp : &PL_sv_undef);
+        }
+    } else if (WANT_ARRAY && IsHashRef(retval)) {
+        HV *hv = (HV *)SvRV(retval);
+        HE *he;
+        hv_iterinit(hv);
+        while ((he = hv_iternext(hv)) != NULL){
+            EXTEND(SP, 2);
+            PUSHs(hv_iterkeysv(he));
+            PUSHs(hv_iterval(hv, he));
+        }
+    } else {
+        XPUSHs(retval ? retval : &PL_sv_undef);
+    }
+    PUTBACK;
+}
+
+static CV *
+make_prototype_method(pTHX_ HV *stash)
+{
+    CV *xsub;
+    xsub = newXS(NULL /* anonymous */, XS_prototype_method, __FILE__);
+    CvXSUBANY(xsub).any_ptr = (void *)stash;
+    return xsub;
+}
+
+static void
+install_prototype_method(pTHX_ HV *stash)
+{
+    CV *prototype_cv = make_prototype_method(aTHX_ stash);
+    GV *prototype_glob = prototype_gv_pvn(stash, "prototype", 9, 0);
+    GvCV_set(prototype_glob, prototype_cv);
+    hv_store(stash, "prototype", 9, (SV *)prototype_glob, 0);
+}
+
+XS(XS_prototype_getter)
+{
+    dVAR; dXSARGS;
+    SV *retval = (SV *)CvXSUBANY(cv).any_ptr;
+    SP -= items; /* PPCODE */
+    PUTBACK;
+    push_values(aTHX_ retval);
+}
+
+XS(XS_prototype_method)
+{
+    dVAR; dXSARGS;
+    if ((items - 1) % 2 != 0)
+        Perl_croak(aTHX_ "Argument isn't hash type");
+    
+    HV *stash = (HV *)CvXSUBANY(cv).any_ptr;
+    I32 i = 1; /* First argument is skip: `my $self = shift;` */
+    while (i < items) {
+        SV *method = ST(i++);
+        SV *val = ST(i++);
+        CV *cv = IsCodeRef(val) ? (CV *)SvRV(val) : make_closure(aTHX_ val);
+        add_method_sv(aTHX_ stash, method, cv);
+    }
+    XSRETURN(0);
 }
 
 MODULE = Package::Prototype    PACKAGE = Package::Prototype
@@ -119,6 +166,8 @@ PPCODE:
 
     stash = (HV *)sv_2mortal((SV *)newHV());
     hv_name_set(stash, pkg, pkglen, 0);
+
+    install_prototype_method(aTHX_ stash);
 
     HV *hv = (HV *)SvRV(ref);
     hv_iterinit(hv);
