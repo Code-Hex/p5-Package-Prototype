@@ -14,6 +14,14 @@ extern "C" {
 #define NEED_newSVpvn_flags
 #include "ppport.h"
 
+#ifndef GvCV_set
+# define GvCV_set(gv,cv) (GvGP(gv)->gp_cv = (cv))
+#endif
+
+#ifndef gv_init_pvn
+# define gv_init_pvn gv_init
+#endif
+
 #define IsArrayRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVAV)
 #define IsHashRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVHV)
 #define IsCodeRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVCV)
