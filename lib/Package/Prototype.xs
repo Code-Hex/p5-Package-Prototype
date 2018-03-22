@@ -14,15 +14,45 @@ extern "C" {
 #define NEED_newSVpvn_flags
 #include "ppport.h"
 
+#define IsArrayRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVAV)
 #define IsHashRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVHV)
 #define IsCodeRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVCV)
+#define WANT_ARRAY GIMME_V == G_ARRAY
+
+static void
+push_values(pTHX_ SV *retval)
+{
+    dSP;
+    if (WANT_ARRAY && IsArrayRef(retval)) {
+        AV *av  = (AV *)SvRV(retval);
+        I32 len = av_len(av) + 1;
+        EXTEND(SP, len);
+        for (I32 i = 0; i < len; i++){
+            SV **const svp = av_fetch(av, i, FALSE);
+            PUSHs(svp ? *svp : &PL_sv_undef);
+        }
+    } else if (WANT_ARRAY && IsHashRef(retval)) {
+        HV *hv = (HV *)SvRV(retval);
+        HE *he;
+        hv_iterinit(hv);
+        while ((he = hv_iternext(hv)) != NULL){
+            EXTEND(SP, 2);
+            PUSHs(hv_iterkeysv(he));
+            PUSHs(hv_iterval(hv, he));
+        }
+    } else {
+        XPUSHs(retval ? retval : &PL_sv_undef);
+    }
+    PUTBACK;
+}
 
 XS(XS_prototype_getter)
 {
     dVAR; dXSARGS;
     SV *retval = (SV *)CvXSUBANY(cv).any_ptr;
-    ST(0) = retval;
-    XSRETURN(1);
+    SP -= items; /* PPCODE */
+    PUTBACK;
+    push_values(aTHX_ retval);
 }
 
 static GV *
