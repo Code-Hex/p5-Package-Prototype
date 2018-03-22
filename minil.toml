@@ -1,5 +1,5 @@
 name = "Package-Prototype"
-# badges = ["travis"]
+badges = ["travis"]
 authority="cpan:CODEHEX"
 
 module_maker="ModuleBuild"
