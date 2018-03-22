@@ -3,6 +3,8 @@ use Test::LeakTrace;
 
 use_ok 'Package::Prototype';
 
+sub string_random { join '', map { ('a'..'z', 'A'..'Z')[int rand 52] } 1..10 }
+
 my @types = (
     120,
     1234.56,
@@ -23,6 +25,12 @@ for my $i (1..10) {
     } '==', $i;
 }
 
-sub string_random { join '', map { ('a'..'z', 'A'..'Z')[int rand 52] } 1..10 }
+no_leaks_ok {
+    my $obj = Package::Prototype->bless({}, 'Hello');
+    $obj->prototype(foo => sub { 100 }, bar => 20, baz => "Hello");
+    $obj->foo;
+    $obj->bar;
+    $obj->baz;
+} 'Detected memory leak via prototype method';
 
 done_testing;

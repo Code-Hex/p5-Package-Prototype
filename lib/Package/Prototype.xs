@@ -107,10 +107,11 @@ make_prototype_method(pTHX_ HV *stash)
 static void
 install_prototype_method(pTHX_ HV *stash)
 {
+    char *prototype = "prototype";
     CV *prototype_cv = make_prototype_method(aTHX_ stash);
-    GV *prototype_glob = prototype_gv_pvn(stash, "prototype", 9, 0);
+    GV *prototype_glob = prototype_gv_pvn(stash, prototype, 9, 0);
     GvCV_set(prototype_glob, prototype_cv);
-    hv_store(stash, "prototype", 9, (SV *)prototype_glob, 0);
+    hv_store(stash, prototype, 9, (SV *)prototype_glob, 0);
 }
 
 XS(XS_prototype_getter)
@@ -133,7 +134,7 @@ XS(XS_prototype_method)
     while (i < items) {
         SV *method = ST(i++);
         SV *val = ST(i++);
-        CV *cv = IsCodeRef(val) ? (CV *)SvRV(val) : make_closure(aTHX_ val);
+        CV *cv = IsCodeRef(val) ? (CV *)SvREFCNT_inc(SvRV(val)) : make_closure(aTHX_ val);
         add_method_sv(aTHX_ stash, method, cv);
     }
     XSRETURN(0);
