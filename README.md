@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/Code-Hex/p5-Package-Prototype.svg?branch=master)](https://travis-ci.org/Code-Hex/p5-Package-Prototype)
 # NAME
 
 Package::Prototype - Super easily to create prototype object

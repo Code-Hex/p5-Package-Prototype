@@ -109,7 +109,7 @@ install_prototype_method(pTHX_ HV *stash)
 {
     char *prototype = "prototype";
     CV *prototype_cv = make_prototype_method(aTHX_ stash);
-    GV *prototype_glob = prototype_gv_pvn(stash, prototype, 9, 0);
+    GV *prototype_glob = prototype_gv_pvn(aTHX_ stash, prototype, 9, 0);
     GvCV_set(prototype_glob, prototype_cv);
     hv_store(stash, prototype, 9, (SV *)prototype_glob, 0);
 }
