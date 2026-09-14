@@ -15,7 +15,7 @@ sub import {
     require Package::Prototype::_Validation if $compile;
     while (@_) {
         my ($name, $type) = splice @_, 0, 2;
-        die "Invalid checker name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
+        die "Invalid typed function name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
         die "Expected a type object providing assert_valid"
             unless blessed($type) && $type->can('assert_valid');
         my $validate = $compile ? Package::Prototype::_Validation::validator($type, $name) : undef;
@@ -66,8 +66,8 @@ elements within partially dynamic structures are checked at compile time.
 Standard C<Optional> elements may be omitted, and unexpected extra keys or
 elements are flagged.
 
-Unknown values are checked at runtime only in C<always> mode. List expansion, subroutine calls inside
-constructors, and dynamic hash keys defer the containing structure. Union types,
+Unknown values are validated at runtime only in C<always> mode. Dynamic keys,
+subroutine calls, and list expansions defer validation of the enclosing structure. Union types,
 custom structural types, Slurpy slots, and derived Optional slots are deferred
 when the value is partial. Structures nested beyond 64 levels are also deferred.
 Duplicate literal keys adhere to perl's last-key-wins rule.
