@@ -10,8 +10,9 @@ sub import {
     my $class = shift;
     my $caller = caller;
     my ($runtime, $compile) = Package::Prototype::_Mode::checks(\@_);
-    require Package::Prototype::_Validation if $compile;
     die "Expected shape name/signature pairs" if @_ % 2;
+    return unless @_;
+    require Package::Prototype::_Validation if $compile;
     while (@_) {
         my ($name, $spec) = splice @_, 0, 2;
         die "Invalid shape name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
@@ -23,12 +24,15 @@ sub import {
             die "Invalid shape method" unless $method =~ /\A[A-Za-z_]\w*\z/;
             die "prototype is reserved" if $method eq 'prototype';
             die "Method signature must be an array reference" unless ref($spec->{$method}) eq 'ARRAY';
-            $validators{$method} = [map {
-                my $type = $_;
+            for my $type (@{$spec->{$method}}) {
                 die "Expected a type object providing assert_valid"
                     unless blessed($type) && $type->can('assert_valid');
-                $compile ? Package::Prototype::_Validation::validator($type, "${package}::$method") : ();
-            } @{$spec->{$method}}];
+            }
+            if ($compile) {
+                $validators{$method} = [map {
+                    Package::Prototype::_Validation::validator($_, "${package}::$method")
+                } @{$spec->{$method}}];
+            }
         }
         no strict 'refs';
         die "Shape package $package is already in use" if keys %{"${package}::"};
@@ -124,44 +128,24 @@ The modes differ as follows. C<syntax> is the default.
     Actual values when called          No              Yes
     Unknown variable values            Not checked     Checked on call
 
-C<perl -c> does not execute the main program body. Neither mode infers the
-contents of unknown variables during compilation. In C<always> mode, their
-actual values are validated when the function or method is called.
+The mode is selected at import time using C<$^C>. C<syntax> enables checks
+only for compile-only invocations such as C<perl -c>. Calls executed in C<BEGIN>
+blocks have no runtime validation in this mode. Definitions using different
+modes can coexist; each keeps the mode selected at its import.
 
-The optional first argument selects a mode for the definitions in that import.
-The default is C<syntax>: checks run only under C<perl -c> or another
-compile-only invocation. Enable both compile-time and runtime checks explicitly:
+During ordinary execution, C<syntax> installs the original method CODE without
+a type or arity wrapper. The constructor still requires the declared methods,
+and native subroutine signatures keep their own argument checks.
 
-    use Package::Prototype::Shape { mode => 'always' }, Counter => { set_count => [Int] };
-
-This changes the earlier experimental default. Applications relying on runtime
-validation must add C<< { mode => 'always' } >> to their imports.
+To add compile-time checks and runtime validation wrappers, use C<always>:
 
     use Types::Standard qw(Int);
-    use Package::Prototype::Shape { mode => 'syntax' }, Counter => {
+    use Package::Prototype::Shape { mode => 'always' }, Counter => {
         set_count => [Int],
     };
-    my Counter $counter = Counter->create(set_count => sub { $_[1] });
-    $counter->set_count('oops');
 
-C<perl -c> rejects this literal. Ordinary execution calls the original method
-without a type or arity wrapper. The constructor still requires exactly the
-declared methods, each supplied as CODE. Native subroutine signatures and errors
-from the method body remain effective.
-
-C<syntax> selects compile-time checks only when C<$^C> is true at import time
-(C<perl -c>, or another compile-only invocation). Ordinary execution installs
-no type checker for these definitions. Calls executed in C<BEGIN> blocks also
-have no runtime validation in this mode. Other definitions imported in
-C<always> mode retain their checks.
-
-Unknown values remain unchecked: passing C<perl -c> does not establish runtime
-type safety. Runtime C<require> and string C<eval> may load code that C<perl -c>
-never sees. Check those files separately when applicable.
-
-Type libraries and type objects in the import arguments are still loaded and
-constructed during ordinary startup. This mode removes validation, not all
-costs associated with type declarations. Constraints must still be deterministic
-and free of side effects when used during compilation.
+Existing code relying on runtime validation must add this option.
+See L<Package::Prototype::Checked/CHECK MODES> for the limits of C<perl -c>
+and the startup costs that remain in both modes.
 
 =cut

@@ -67,9 +67,11 @@ runtime validation must add that option.
 In `syntax` mode, unknown inputs stay unchecked, including calls in BEGIN blocks.
 Shape installs the original CODE without a type/arity wrapper. Checked retains
 its scalar identity call and one-argument contract. Native signatures and
-constructor validation remain effective. Type library loading and type
-construction still cost startup time. Runtime require/eval may load code that
-`perl -c` never sees; check those files separately.
+constructor validation remain effective.
+
+Type libraries and type objects are still loaded and constructed at startup.
+Runtime `require` and string `eval` may load code that `perl -c` never sees;
+check those files separately.
 
 ## What is checked
 

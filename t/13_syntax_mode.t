@@ -167,4 +167,25 @@ die 'native signature lost' unless $@ =~ /Too few arguments/;
 SOURCE
     is $status, 0, 'native signatures still enforce their own contract';
 }
+for my $module ('Checked', 'Shape') {
+    SKIP: {
+        skip 'Shape requires Perl 5.22', 2 if $module eq 'Shape' && $] < 5.022;
+        for my $arguments ("{mode => 'always'}", "{mode => 'always'}, 'unpaired'") {
+            my $source = "use Package::Prototype::$module ();\n" . <<'SOURCE';
+BEGIN {
+    no warnings 'redefine';
+    *Package::Prototype::_enable_shape_checker = sub { die 'unexpected hook' };
+}
+SOURCE
+            $source .= "BEGIN { eval { Package::Prototype::${module}->import($arguments) };"
+                . ($arguments =~ /unpaired/ ? 'die "missing pair error" unless $@ =~ /Expected .* pairs/;' : 'die $@ if $@;')
+                . " }\n";
+            $source .= <<'SOURCE';
+CHECK { die 'validation loaded' if exists $INC{'Package/Prototype/_Validation.pm'} }
+SOURCE
+            ($status, $output) = compile_only($source);
+            is $status, 0, "$module does not prepare validation without valid pairs";
+        }
+    }
+}
 done_testing;
