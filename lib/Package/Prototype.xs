@@ -37,6 +37,20 @@ XS(XS_prototype_method);
 XS(XS_prototype_getter);
 
 static MGVTBL getter_vtbl = { 0 };
+static MGVTBL object_vtbl = { 0 };
+static MGVTBL accessor_vtbl = { 0 };
+
+static HV *
+object_metadata(pTHX_ SV *object)
+{
+    MAGIC *magic;
+    if (!SvROK(object) || !SvOBJECT(SvRV(object)))
+        croak("Expected a Package::Prototype object");
+    magic = mg_findext((SV *)SvSTASH(SvRV(object)), PERL_MAGIC_ext, &object_vtbl);
+    if (!magic) croak("Expected a Package::Prototype object");
+    return (HV *)magic->mg_obj;
+}
+
 
 static GV *
 prototype_gv_pvn(pTHX_ HV *stash, const char *name, STRLEN len, U32 flags)
@@ -410,6 +424,10 @@ PPCODE:
     stash = (HV *)sv_2mortal((SV *)newHV());
     hv_name_set(stash, pkg, pkglen, pkgsv && SvUTF8(pkgsv) ? SVf_UTF8 : 0);
 
+    {
+        HV *metadata = (HV *)sv_2mortal((SV *)newHV());
+        sv_magicext((SV *)stash, (SV *)metadata, PERL_MAGIC_ext, &object_vtbl, NULL, 0);
+    }
     install_prototype_method(aTHX_ stash);
 
     HV *hv = (HV *)SvRV(ref);
@@ -450,3 +468,57 @@ CODE:
 #else
     croak("Package::Prototype::Shape requires Perl 5.22 or later");
 #endif
+
+SV *
+_metadata(object)
+    SV *object
+CODE:
+    RETVAL = newRV_inc((SV *)object_metadata(aTHX_ object));
+OUTPUT:
+    RETVAL
+
+void
+_annotate_accessor(code, info)
+    SV *code
+    SV *info
+CODE:
+    if (!IsCodeRef(code) || !IsHashRef(info)) croak("Expected accessor code and metadata");
+    sv_magicext(SvRV(code), SvRV(info), PERL_MAGIC_ext, &accessor_vtbl, NULL, 0);
+
+SV *
+_members(object)
+    SV *object
+PREINIT:
+    HV *stash;
+    HV *members;
+    HE *entry;
+CODE:
+    object_metadata(aTHX_ object);
+    stash = SvSTASH(SvRV(object));
+    members = (HV *)sv_2mortal((SV *)newHV());
+    hv_iterinit(stash);
+    while ((entry = hv_iternext(stash))) {
+        SV *value = HeVAL(entry);
+        CV *code;
+        MAGIC *accessor;
+        HV *info;
+        HE *field;
+        if (!isGV(value) || !(code = GvCV((GV *)value))) continue;
+        if (CvISXSUB(code) && CvXSUB(code) == XS_prototype_method) continue;
+        info = (HV *)sv_2mortal((SV *)newHV());
+        accessor = mg_findext((SV *)code, PERL_MAGIC_ext, &accessor_vtbl);
+        if (accessor) {
+            hv_iterinit((HV *)accessor->mg_obj);
+            while ((field = hv_iternext((HV *)accessor->mg_obj)))
+                hv_store_ent(info, hv_iterkeysv(field), newSVsv(HeVAL(field)), 0);
+        } else {
+            MAGIC *getter = mg_findext((SV *)code, PERL_MAGIC_ext, &getter_vtbl);
+            hv_store(info, "kind", 4, newSVpv(getter ? "value" : "method", 0), 0);
+        }
+        hv_store(info, "own", 3, newSViv(1), 0);
+        hv_store(info, "depth", 5, newSViv(0), 0);
+        hv_store_ent(members, hv_iterkeysv(entry), newRV_inc((SV *)info), 0);
+    }
+    RETVAL = newRV_inc((SV *)members);
+OUTPUT:
+    RETVAL
