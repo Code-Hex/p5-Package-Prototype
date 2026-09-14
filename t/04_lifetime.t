@@ -43,4 +43,42 @@ no_leaks_ok {
     my $value = $getter->();
 } 'creation, replacement, and escaped getters release their values';
 
+sub collect_arguments { return [@_] }
+for my $case (
+    ['scalar', 'old', ['old', 'last']],
+    ['array', ['old'], ['old', 'last']],
+    ['hash', { old => 'value' }, ['old', 'value', 'last']],
+) {
+    my ($kind, $initial, $expected) = @$case;
+    my $o = Package::Prototype->bless({ value => $initial });
+    undef $initial;
+    $case->[1] = undef;
+    my $got = collect_arguments($o->value, do {
+        $o->prototype(value => 'replacement');
+        'last';
+    });
+    is_deeply $got, $expected, "$kind returns survive replacement during argument evaluation";
+}
+
+{
+    package FailingPrototypeValue;
+    sub TIESCALAR { bless {}, shift }
+    sub FETCH { die "value fetch failed\n" }
+}
+tie my $failing_value, 'FailingPrototypeValue';
+my $receiver = Package::Prototype->bless({});
+no_leaks_ok {
+    eval { $receiver->prototype(value => $failing_value) };
+} 'a failing value fetch does not leak an uninstalled getter';
+eval { $receiver->prototype(value => $failing_value) };
+like $@, qr/value fetch failed/, 'value fetch exception propagates';
+ok !$receiver->can('value'), 'failed value is not installed';
+
+no_leaks_ok {
+    eval { $receiver->prototype($failing_value => 42) };
+} 'a failing method name fetch does not leak a getter';
+no_leaks_ok {
+    eval { $receiver->prototype($failing_value => sub { 1 }) };
+} 'a failing method name fetch does not leak a code reference';
+
 done_testing;
