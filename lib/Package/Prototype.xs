@@ -175,7 +175,7 @@ checked_literal(pTHX_ OP *op, unsigned depth)
         return sv_2mortal(newSVsv(value));
     }
     if (op->op_type == OP_UNDEF && !(op->op_flags & OPf_KIDS))
-        return &PL_sv_undef;
+        return sv_2mortal(newSV(0));
     if (op->op_type != OP_ANONLIST && op->op_type != OP_ANONHASH)
         return NULL;
     if (!(op->op_flags & OPf_KIDS)) return NULL;
