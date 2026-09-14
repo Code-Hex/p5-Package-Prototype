@@ -107,6 +107,21 @@ This method can be used from the generated instance. By using this, it is possib
 
 =back
 
+=head1 MODERN PERL
+
+On Perl 5.36 and later, methods may use subroutine signatures. The first
+parameter is the invocant, just as with a normal Perl method:
+
+    use v5.36;
+    my $obj = Package::Prototype->bless({
+        add => sub ($self, $x, $y = 2) { $x + $y },
+    });
+    say $obj->add(4); # 6
+
+Code references are installed directly. Perl handles argument validation,
+calling context, and exceptions. The module does not enable language features
+in the caller or require a newer Perl merely to use its existing API.
+
 =head1 SEE ALSO
 
 L<Package::Anon>
