@@ -37,6 +37,7 @@ my %args = (
     test_requires => {
         'Test::LeakTrace' => '0',
         'Test::More' => '0.98',
+        'Type::Tiny' => '2.000000',
     },
 
     name            => 'Package-Prototype',
