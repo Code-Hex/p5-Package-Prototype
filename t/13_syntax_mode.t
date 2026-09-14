@@ -63,7 +63,7 @@ like $output, qr/checks=0\nruntime=0/, 'no validation during startup, BEGIN, or 
 is $status, 0, 'counting type accepts literal during perl -c';
 like $output, qr/checks=1/, 'only the known literal is validated';
 
-for my $options ('{mode => "typo"}', '{mode => undef}', '{other => 1}') {
+for my $options ('{mode => "typo"}', '{mode => "checked"}', '{mode => undef}', '{other => 1}') {
     ($status, $output) = compile_only("use Package::Prototype::Checked $options;");
     isnt $status, 0, "invalid options rejected: $options";
     like $output, qr/(?:Expected mode|Unknown check option)/, 'option diagnostic';
@@ -71,15 +71,15 @@ for my $options ('{mode => "typo"}', '{mode => undef}', '{other => 1}') {
 for my $reverse (0, 1) {
     my @imports = (
         'use Package::Prototype::Checked {mode => "syntax"}, loose => Int;',
-        'use Package::Prototype::Checked {mode => "checked"}, strict_value => Int;',
+        'use Package::Prototype::Checked {mode => "always"}, strict_value => Int;',
     );
     @imports = reverse @imports if $reverse;
     my $source = "use Types::Standard qw(Int);\n" . join("\n", @imports);
     ($status, $output) = execute_program($source . 'loose("bad"); my $x = "bad"; strict_value($x);');
-    isnt $status, 0, 'checked runtime validation survives mixed imports';
-    like $output, qr/Type check strict_value failed/, 'only checked definition validates';
+    isnt $status, 0, 'always runtime validation survives mixed imports';
+    like $output, qr/Type check strict_value failed/, 'only always definition validates';
     ($status, $output) = execute_program($source . 'strict_value("bad");');
-    like $output, qr/Compile-time type error/, 'checked compilation remains active';
+    like $output, qr/Compile-time type error/, 'always compilation remains active';
 }
 
 SKIP: {
@@ -102,14 +102,14 @@ SOURCE
     for my $reverse (0, 1) {
         my @imports = (
             'use Package::Prototype::Shape {mode => "syntax"}, Loose => {set => [Int]};',
-            'use Package::Prototype::Shape {mode => "checked"}, Strict => {set => [Int]};',
+            'use Package::Prototype::Shape {mode => "always"}, Strict => {set => [Int]};',
         );
         @imports = reverse @imports if $reverse;
         my $source = 'use Types::Standard qw(Int);' . join("\n", @imports);
         ($status, $output) = execute_program($source . 'my Loose $o = Loose->create(set => sub {}); $o->set("bad");');
-        is $status, 0, 'global checked hook does not inspect syntax shape';
+        is $status, 0, 'global always hook does not inspect syntax shape';
         ($status, $output) = execute_program($source . 'my Strict $o; $o->set("bad");');
-        like $output, qr/Compile-time type error/, 'checked shape still inspected';
+        like $output, qr/Compile-time type error/, 'always shape still inspected';
     }
     ($status, $output) = execute_program(<<'SOURCE');
 BEGIN { package CountingType; sub assert_valid { die 'VALIDATED' } }

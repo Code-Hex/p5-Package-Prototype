@@ -7,9 +7,9 @@ sub checks {
     my $options = ref($args->[0]) eq 'HASH' ? shift @$args : {};
     die "Unknown check option" if grep { $_ ne 'mode' } keys %$options;
     my $mode = exists $options->{mode} ? $options->{mode} : 'syntax';
-    die "Expected mode checked or syntax"
-        unless defined($mode) && !ref($mode) && ($mode eq 'checked' || $mode eq 'syntax');
-    my $runtime = $mode eq 'checked';
+    die "Expected mode always or syntax"
+        unless defined($mode) && !ref($mode) && ($mode eq 'always' || $mode eq 'syntax');
+    my $runtime = $mode eq 'always';
     return ($runtime, $runtime || $^C);
 }
 

@@ -64,6 +64,8 @@ sub import {
 }
 1;
 
+=encoding UTF-8
+
 =head1 NAME
 
 Package::Prototype::Shape - Experimental typed lexical method checks
@@ -93,13 +95,13 @@ in annotations and constructor calls (e.g. C<my App::Counter $counter>).
 
 Known arguments—including partial standard C<ArrayRef>, C<Tuple>, and C<Dict>
 structures—are validated as described in L<Package::Prototype::Checked>.
-Calls with potential list expansion are checked only at runtime in C<checked> mode. Method names not
+Calls with potential list expansion are checked only at runtime in C<always> mode. Method names not
 declared in the shape, dynamic method dispatch, unannotated aliases, and return values are not checked at compile time.
 Reassignments are not tracked: later calls still use the declared signature.
 The annotation does not prove that the runtime receiver has that shape.
 
 C<< Counter->create(name => CODE, ...) >> requires exactly the declared methods
-and, in C<checked> mode, creates an object with runtime wrappers
+and, in C<always> mode, creates an object with runtime wrappers
 enforcing method arity and argument types while preserving caller context
 (scalar, list, void) and supporting native subroutine signatures. The returned
 instance is a Package::Prototype object; shape names do not imply an inheritance
@@ -113,14 +115,27 @@ not guarantee runtime type safety for dynamic inputs.
 
 =head1 CHECK MODES
 
+The modes differ as follows. C<syntax> is the default.
+
+    Type check                         syntax          always
+    ---------------------------------  --------------  ----------------
+    Known values under perl -c         Yes             Yes
+    Known values at ordinary startup   No              Yes
+    Actual values when called          No              Yes
+    Unknown variable values            Not checked     Checked on call
+
+C<perl -c> does not execute the main program body. Neither mode infers the
+contents of unknown variables during compilation. In C<always> mode, their
+actual values are validated when the function or method is called.
+
 The optional first argument selects a mode for the definitions in that import.
 The default is C<syntax>: checks run only under C<perl -c> or another
 compile-only invocation. Enable both compile-time and runtime checks explicitly:
 
-    use Package::Prototype::Shape { mode => 'checked' }, Counter => { set_count => [Int] };
+    use Package::Prototype::Shape { mode => 'always' }, Counter => { set_count => [Int] };
 
 This changes the earlier experimental default. Applications relying on runtime
-validation must add C<< { mode => 'checked' } >> to their imports.
+validation must add C<< { mode => 'always' } >> to their imports.
 
     use Types::Standard qw(Int);
     use Package::Prototype::Shape { mode => 'syntax' }, Counter => {
@@ -138,7 +153,7 @@ C<syntax> selects compile-time checks only when C<$^C> is true at import time
 (C<perl -c>, or another compile-only invocation). Ordinary execution installs
 no type checker for these definitions. Calls executed in C<BEGIN> blocks also
 have no runtime validation in this mode. Other definitions imported in
-C<checked> mode retain their checks.
+C<always> mode retain their checks.
 
 Unknown values remain unchecked: passing C<perl -c> does not establish runtime
 type safety. Runtime C<require> and string C<eval> may load code that C<perl -c>

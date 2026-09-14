@@ -26,7 +26,7 @@ sub _invoke_perl {
 use strict;
 use warnings;
 use Types::Standard qw(Int ArrayRef);
-use Package::Prototype::Shape { mode => 'checked' }, Counter => {
+use Package::Prototype::Shape { mode => 'always' }, Counter => {
     count     => [],
     set_count => [Int],
     values    => [ArrayRef[Int]],
@@ -83,7 +83,7 @@ is($output, '42', 'method returns original result');
 is($status, 0, 'no runtime execution under perl -c');
 unlike($output, qr/BODY EXECUTED/, 'no body side effect');
 ($status, $output) = execute_program(<<'SOURCE');
-use Package::Prototype::Shape { mode => 'checked' }, Context => { result => [] };
+use Package::Prototype::Shape { mode => 'always' }, Context => { result => [] };
 my Context $c = Context->create(
     result => sub {
         if (!defined wantarray) {
@@ -102,7 +102,7 @@ is($output, 'S12V', 'scalar list and void context preserved');
 ($status, $output) = execute_program(<<'SOURCE');
 use feature 'signatures';
 no warnings 'experimental::signatures';
-use Package::Prototype::Shape { mode => 'checked' }, Pair => { sum => [Int, Int] };
+use Package::Prototype::Shape { mode => 'always' }, Pair => { sum => [Int, Int] };
 my Pair $p = Pair->create(sum => sub ($self, $x, $y) { $x + $y });
 use constant TWO => (1, 2);
 print $p->sum(TWO);
@@ -112,7 +112,7 @@ is($output, '3', 'arguments preserved through wrapper');
 ($status, $output) = compile_only(<<'SOURCE');
 package Outer;
 use Types::Standard qw(Int);
-use Package::Prototype::Shape { mode => 'checked' }, Local => { value => [Int] };
+use Package::Prototype::Shape { mode => 'always' }, Local => { value => [Int] };
 my Outer::Local $local;
 $local->value("bad");
 SOURCE
