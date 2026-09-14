@@ -49,8 +49,11 @@ Package::Prototype::Checked - Experimental compile-time checks with runtime fall
 =head1 DESCRIPTION
 
 Exports named scalar identity functions backed by type objects providing
-C<assert_valid>. Direct calls with literal scalar arguments are checked while
-compiling. Every call is also checked at runtime. Requires Perl 5.16 or later;
+C<assert_valid>. Direct calls with literal scalars, undef, and entirely constant array/hash
+references (including nested references) are checked while compiling. Expressions
+folded to constants by Perl are also checked. Structures containing variables,
+list expansion, or function calls are deferred; their expressions are never
+executed by this checker. Nesting deeper than 64 levels is deferred. Every call is also checked at runtime. Requires Perl 5.16 or later;
 loading the main Package::Prototype module does not enable this feature.
 
 Type constraints are executed during compilation on copies of known values.

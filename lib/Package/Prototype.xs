@@ -162,22 +162,66 @@ XS(XS_prototype_method)
 
 /* A call checker only sees direct calls resolved during compilation. */
 #if PERL_VERSION >= 16
+/* Reconstruct literal values from safe syntax tree nodes (OP_CONST, OP_UNDEF,
+ * OP_ANONLIST, OP_ANONHASH). Does not execute arbitrary opcodes. */
+static SV *
+checked_literal(pTHX_ OP *op, unsigned depth)
+{
+    OP *child;
+    SV *result;
+    if (!op || depth > 64) return NULL;
+    if (op->op_type == OP_CONST) {
+        SV *value = cSVOPx_sv(op);
+        if (SvROK(value) || SvMAGICAL(value)) return NULL;
+        return sv_2mortal(newSVsv(value));
+    }
+    if (op->op_type == OP_UNDEF && !(op->op_flags & OPf_KIDS))
+        return sv_2mortal(newSV(0));
+    if (op->op_type != OP_ANONLIST && op->op_type != OP_ANONHASH)
+        return NULL;
+    if (!(op->op_flags & OPf_KIDS)) return NULL;
+    child = cUNOPx(op)->op_first;
+    if (child->op_type != OP_PUSHMARK) return NULL;
+    child = OpSIBLING(child);
+    result = sv_2mortal(newRV_noinc(op->op_type == OP_ANONLIST
+        ? (SV *)newAV() : (SV *)newHV()));
+    while (child) {
+        SV *value = checked_literal(aTHX_ child, depth + 1);
+        if (!value) return NULL;
+        if (op->op_type == OP_ANONLIST) {
+            av_push((AV *)SvRV(result), SvREFCNT_inc(value));
+        } else {
+            SV *key = value;
+            child = OpSIBLING(child);
+            if (!child || !SvOK(key) || SvROK(key)) return NULL;
+            value = checked_literal(aTHX_ child, depth + 1);
+            if (!value) return NULL;
+            hv_store_ent((HV *)SvRV(result), key, SvREFCNT_inc(value), 0);
+        }
+        child = OpSIBLING(child);
+    }
+    return result;
+}
+
 static OP *
 checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
 {
     OP *first, *arg;
+    SV *value;
     op = ck_entersub_args_proto(aTHX_ op, namegv,
                                sv_2mortal(newSVpvs("$")));
     first = cUNOPx(op)->op_first;
     if (!OpHAS_SIBLING(first)) first = cUNOPx(first)->op_first;
     arg = OpSIBLING(first);
-    if (arg && OpHAS_SIBLING(arg) && arg->op_type == OP_CONST) {
+    if (arg && OpHAS_SIBLING(arg)) {
         dSP;
         ENTER;
         SAVETMPS;
+        value = checked_literal(aTHX_ arg, 0);
+        if (!value) { FREETMPS; LEAVE; return op; }
         save_scalar(PL_errgv);
         PUSHMARK(SP);
-        XPUSHs(sv_2mortal(newSVsv(cSVOPx_sv(arg))));
+        XPUSHs(value);
         PUTBACK;
         call_sv(validator, G_DISCARD | G_EVAL);
         if (SvTRUE(ERRSV))
