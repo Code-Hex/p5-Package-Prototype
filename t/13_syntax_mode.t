@@ -26,7 +26,7 @@ sub _invoke_perl {
 
 my $checked = <<'SOURCE';
 use Types::Standard qw(Int ArrayRef Dict Tuple);
-use Package::Prototype::Checked { mode => 'syntax' },
+use Package::Prototype::Checked
     integer => Int, ints => ArrayRef[Int], record => Dict[id => Int], pair => Tuple[Int, Int];
 my $input = 'bad';
 SOURCE
@@ -48,7 +48,7 @@ BEGIN {
     our $calls = 0;
     sub assert_valid { ++$calls }
 }
-use Package::Prototype::Checked { mode => 'syntax' }, value => bless({}, 'CountingType');
+use Package::Prototype::Checked {}, value => bless({}, 'CountingType');
 BEGIN { my $x = 'dynamic'; value($x) }
 CHECK { print "checks=$CountingType::calls\n" }
 value(42);
@@ -86,7 +86,7 @@ SKIP: {
     skip 'Shape requires Perl 5.22', 20 if $] < 5.022;
     my $shape = <<'SOURCE';
 use Types::Standard qw(Int);
-use Package::Prototype::Shape {mode => 'syntax'}, Loose => {set => [Int]};
+use Package::Prototype::Shape Loose => {set => [Int]};
 my Loose $obj = Loose->create(set => sub { print "body=$_[1]\n"; return $_[1] });
 SOURCE
     ($status, $output) = compile_only($shape . '$obj->set("bad");');
@@ -102,7 +102,7 @@ SOURCE
     for my $reverse (0, 1) {
         my @imports = (
             'use Package::Prototype::Shape {mode => "syntax"}, Loose => {set => [Int]};',
-            'use Package::Prototype::Shape Strict => {set => [Int]};',
+            'use Package::Prototype::Shape {mode => "checked"}, Strict => {set => [Int]};',
         );
         @imports = reverse @imports if $reverse;
         my $source = 'use Types::Standard qw(Int);' . join("\n", @imports);
@@ -113,7 +113,7 @@ SOURCE
     }
     ($status, $output) = execute_program(<<'SOURCE');
 BEGIN { package CountingType; sub assert_valid { die 'VALIDATED' } }
-use Package::Prototype::Shape {mode => 'syntax'}, Loose => {set => [bless({}, 'CountingType')]};
+use Package::Prototype::Shape {}, Loose => {set => [bless({}, 'CountingType')]};
 my $body = sub { return wantarray ? (1, 2) : defined(wantarray) ? 'scalar' : () };
 my Loose $obj = Loose->create(set => $body);
 die 'wrapped' unless $obj->can('set') == $body;
@@ -141,7 +141,7 @@ SKIP: {
 use Test2::V0;
 use Test::LeakTrace;
 use Types::Standard qw(Int);
-use Package::Prototype::Shape {mode => 'syntax'}, Loose => {set => [Int]};
+use Package::Prototype::Shape Loose => {set => [Int]};
 my $error = bless {}, 'Failure';
 my Loose $obj = Loose->create(set => sub { die $error });
 eval { $obj->set(1) };
@@ -160,7 +160,7 @@ SKIP: {
     ($status, $output) = execute_program(<<'SOURCE');
 use v5.36;
 use Types::Standard qw(Int);
-use Package::Prototype::Shape {mode => 'syntax'}, Loose => {set => [Int]};
+use Package::Prototype::Shape Loose => {set => [Int]};
 my Loose $obj = Loose->create(set => sub ($self, $value) { $value });
 eval { $obj->set() };
 die 'native signature lost' unless $@ =~ /Too few arguments/;

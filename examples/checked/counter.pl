@@ -1,8 +1,8 @@
 use v5.22;
 use warnings;
 use Types::Standard qw(Int);
-use Package::Prototype::Checked count_value => Int;
-use Package::Prototype::Shape Counter => {
+use Package::Prototype::Checked { mode => 'checked' }, count_value => Int;
+use Package::Prototype::Shape { mode => 'checked' }, Counter => {
     count => [],
     set_count => [Int],
 };

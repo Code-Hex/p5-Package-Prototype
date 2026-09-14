@@ -59,9 +59,11 @@ specified by classname. Also, available as an object instance.
 # EXPERIMENTAL COMPILE-TIME CHECKING
 
 [Package::Prototype::Checked](https://metacpan.org/pod/Package%3A%3APrototype%3A%3AChecked) provides opt-in typed identity functions with
-compile-time checks for known constants and runtime checks for dynamic values.
+checks for known constants under `perl -c`. Opt into `checked` mode
+to also validate dynamic values at runtime.
 [Package::Prototype::Shape](https://metacpan.org/pod/Package%3A%3APrototype%3A%3AShape) checks method arguments on native typed lexicals
-such as `my Counter $obj`, with runtime wrappers supplied by its factory.
+such as `my Counter $obj`. Its factory adds runtime wrappers only in
+`checked` mode.
 These are partial checks, not whole-program type inference. Existing APIs are
 unchanged. See `docs/compile-time-types.md` and `examples/checked/` in the
 source distribution for executable examples and the guarantee boundaries.

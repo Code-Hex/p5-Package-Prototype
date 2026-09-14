@@ -85,20 +85,21 @@ Package::Prototype::Shape - Experimental typed lexical method checks
 =head1 CONTRACT
 
 Requires Perl 5.22 or later. Registers method signatures in package scope at
-compile time. Method calls made directly on typed lexical variables (for example,
+compile time when checks are enabled (by default, under C<perl -c>).
+Method calls made directly on typed lexical variables (for example,
 C<my Counter $counter>) are inspected for valid arity and literal arguments
 during compilation. Outside C<main>, the shape name must be fully qualified
 in annotations and constructor calls (e.g. C<my App::Counter $counter>).
 
 Known arguments—including partial standard C<ArrayRef>, C<Tuple>, and C<Dict>
 structures—are validated as described in L<Package::Prototype::Checked>.
-Calls with potential list expansion are deferred to runtime. Method names not
+Calls with potential list expansion are checked only at runtime in C<checked> mode. Method names not
 declared in the shape, dynamic method dispatch, unannotated aliases, and return values are not checked at compile time.
 Reassignments are not tracked: later calls still use the declared signature.
 The annotation does not prove that the runtime receiver has that shape.
 
 C<< Counter->create(name => CODE, ...) >> requires exactly the declared methods
-and, in the default C<checked> mode, creates an object with runtime wrappers
+and, in C<checked> mode, creates an object with runtime wrappers
 enforcing method arity and argument types while preserving caller context
 (scalar, list, void) and supporting native subroutine signatures. The returned
 instance is a Package::Prototype object; shape names do not imply an inheritance
@@ -113,8 +114,13 @@ not guarantee runtime type safety for dynamic inputs.
 =head1 CHECK MODES
 
 The optional first argument selects a mode for the definitions in that import.
-Omitting it is equivalent to C<< { mode => 'checked' } >> and retains both
-compile-time and runtime checks.
+The default is C<syntax>: checks run only under C<perl -c> or another
+compile-only invocation. Enable both compile-time and runtime checks explicitly:
+
+    use Package::Prototype::Shape { mode => 'checked' }, Counter => { set_count => [Int] };
+
+This changes the earlier experimental default. Applications relying on runtime
+validation must add C<< { mode => 'checked' } >> to their imports.
 
     use Types::Standard qw(Int);
     use Package::Prototype::Shape { mode => 'syntax' }, Counter => {

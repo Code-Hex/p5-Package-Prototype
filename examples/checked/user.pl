@@ -1,7 +1,7 @@
 use v5.16;
 use warnings;
 use Types::Standard qw(Dict Int Str);
-use Package::Prototype::Checked
+use Package::Prototype::Checked { mode => 'checked' },
     checked_user => Dict[
         user_id      => Int,
         display_name => Str,
