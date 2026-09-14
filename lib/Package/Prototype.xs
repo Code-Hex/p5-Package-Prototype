@@ -234,6 +234,81 @@ checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
 }
 #endif
 
+#if PERL_VERSION >= 22
+static Perl_check_t previous_shape_checker;
+
+static OP *
+shape_call(pTHX_ OP *op)
+{
+    OP *first, *receiver, *method, *arg;
+    HV *stash;
+    SV **entry;
+    HE *signature;
+    AV *validators;
+    SSize_t index = 0;
+    op = previous_shape_checker(aTHX_ op);
+    if (op->op_type != OP_ENTERSUB || !(op->op_flags & OPf_KIDS)) return op;
+    first = cUNOPx(op)->op_first;
+    if (!OpHAS_SIBLING(first)) first = cUNOPx(first)->op_first;
+    receiver = OpSIBLING(first);
+    if (!receiver || receiver->op_type != OP_PADSV) return op;
+    stash = PAD_COMPNAME_TYPE(receiver->op_targ);
+    if (!stash) return op;
+    entry = hv_fetchs(stash, "__PACKAGE_PROTOTYPE_METHODS", 0);
+    if (!entry || !isGV(*entry) || !GvHV(*entry)) return op;
+    method = receiver;
+    while (OpHAS_SIBLING(method)) method = OpSIBLING(method);
+    if (method->op_type != OP_METHOD_NAMED) return op;
+    signature = hv_fetch_ent(GvHV(*entry), cMETHOPx_meth(method), 0, 0);
+    if (!signature) return op; /* Unlisted methods remain dynamic. */
+    if (!IsArrayRef(HeVAL(signature))) return op;
+    validators = (AV *)SvRV(HeVAL(signature));
+
+    /* Do not map positional constraints across a potentially expanding list. */
+    for (arg = OpSIBLING(receiver); arg != method; arg = OpSIBLING(arg)) {
+        if (!arg) return op;
+        switch (arg->op_type) {
+            case OP_CONST:
+            case OP_PADSV:
+            case OP_UNDEF:
+            case OP_ANONLIST:
+            case OP_ANONHASH:
+                break;
+            default:
+                return op;
+        }
+        index++;
+    }
+    if (index != av_len(validators) + 1)
+        croak("Compile-time arity error for %s at %s line %" IVdf,
+              SvPV_nolen(cMETHOPx_meth(method)), CopFILE(PL_curcop),
+              (IV)CopLINE(PL_curcop));
+    index = 0;
+    for (arg = OpSIBLING(receiver); arg != method; arg = OpSIBLING(arg)) {
+        SV *value;
+        SV **validator = av_fetch(validators, index++, 0);
+        dSP;
+        if (!validator || !IsCodeRef(*validator)) continue;
+        ENTER;
+        SAVETMPS;
+        value = checked_literal(aTHX_ arg, 0);
+        if (value) {
+            save_scalar(PL_errgv);
+            PUSHMARK(SP);
+            XPUSHs(value);
+            PUTBACK;
+            call_sv(*validator, G_DISCARD | G_EVAL);
+            if (SvTRUE(ERRSV))
+                croak("Compile-time type error at %s line %" IVdf ": %s",
+                      CopFILE(PL_curcop), (IV)CopLINE(PL_curcop), SvPV_nolen(ERRSV));
+        }
+        FREETMPS;
+        LEAVE;
+    }
+    return op;
+}
+#endif
+
 MODULE = Package::Prototype    PACKAGE = Package::Prototype
 PROTOTYPES: DISABLE
 
@@ -292,4 +367,13 @@ CODE:
     cv_set_call_checker((CV *)SvRV(code), checked_call, validator);
 #else
     croak("Package::Prototype::Checked requires Perl 5.16 or later");
+#endif
+
+void
+_enable_shape_checker()
+CODE:
+#if PERL_VERSION >= 22
+    wrap_op_checker(OP_ENTERSUB, shape_call, &previous_shape_checker);
+#else
+    croak("Package::Prototype::Shape requires Perl 5.22 or later");
 #endif
