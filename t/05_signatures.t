@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 use Package::Prototype;
 
 BEGIN { plan skip_all => 'signatures require Perl 5.36' if $] < 5.036 }
@@ -18,13 +18,13 @@ my $ok = eval q{
     eval { $obj->add(1, 2, 3) };
     like $@, qr/Too many arguments/, 'excess arguments';
     is scalar($obj->context), 3, 'scalar context reaches method';
-    is_deeply [$obj->context], [1, 2], 'list context reaches method';
+    is [$obj->context], [1, 2], 'list context reaches method';
     $obj->prototype(add => sub ($self, $x) { $x * 2 });
     is $obj->add(4), 8, 'replacement retains signature';
     my $error = bless {}, 'SignatureError';
     $obj->prototype(fail => sub ($self) { die $error });
     eval { $obj->fail };
-    is $@, $error, 'exception object propagates unchanged';
+    ref_is $@, $error, 'exception object propagates unchanged';
     1;
 };
 ok $ok, 'signature checks completed' or diag $@;

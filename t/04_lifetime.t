@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 use Test::LeakTrace;
 use Package::Prototype;
 
@@ -57,7 +57,7 @@ for my $case (
         $o->prototype(value => 'replacement');
         'last';
     });
-    is_deeply $got, $expected, "$kind returns survive replacement during argument evaluation";
+    is $got, $expected, "$kind returns survive replacement during argument evaluation";
 }
 
 {

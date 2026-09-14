@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 use Package::Prototype;
 BEGIN { plan skip_all => 'named parameters require Perl 5.44' if $] < 5.044 }
 my $ok = eval q{

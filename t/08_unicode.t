@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use utf8;
-use Test::More;
+use Test2::V0;
 use Package::Prototype;
 BEGIN { plan skip_all => 'Unicode method names require Perl 5.36 or later in this module' if $] < 5.036 }
 my $obj = Package::Prototype->bless({ '名前' => '日本語', 'é' => 1 }, '例');

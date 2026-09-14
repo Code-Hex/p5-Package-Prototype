@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 BEGIN { plan skip_all => 'Shape requires Perl 5.22' if $] < 5.022 }
 use File::Temp qw(tempfile);
 use IPC::Open3;

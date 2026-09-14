@@ -1,7 +1,7 @@
 use strict;
-use Test::More;
+use Test2::V0;
 
-use_ok 'Package::Prototype';
+use Package::Prototype;
 
 sub __ANON__::foo { die "DIED" }
 

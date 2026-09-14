@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 BEGIN { plan skip_all => 'Checked requires Perl 5.16' if $] < 5.016 }
 use File::Temp qw(tempfile);
 use IPC::Open3;
