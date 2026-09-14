@@ -1,7 +1,7 @@
-use Test::More;
+use Test2::V0;
 use Test::LeakTrace;
 
-use_ok 'Package::Prototype';
+use Package::Prototype;
 
 sub string_random { join '', map { ('a'..'z', 'A'..'Z')[int rand 52] } 1..10 }
 

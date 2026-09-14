@@ -1,7 +1,7 @@
 use strict;
-use Test::More;
+use Test2::V0;
 
-use_ok 'Package::Prototype';
+is dies { require Package::Prototype }, undef, 'Package::Prototype loads';
 
 done_testing;
 

@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 use Package::Prototype;
 BEGIN { plan skip_all => 'builtin booleans require Perl 5.36' if $] < 5.036 }
 

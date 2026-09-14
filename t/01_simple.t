@@ -1,7 +1,7 @@
 use strict;
-use Test::More;
+use Test2::V0;
 
-use_ok 'Package::Prototype';
+use Package::Prototype;
 
 my %orig = (hello => 20, world => "codehex");
 my @orig = (1..10);
@@ -24,13 +24,13 @@ is $proto->baz($proto->bar), "Hello, World"; # scalar wantarray
 # reference
 my $href = $proto->hoge;
 my $aref = $proto->fuga;
-is_deeply $href, \%orig;
-is_deeply $aref, \@orig; 
+is $href, \%orig;
+is $aref, \@orig;
 
 # wantarray
 my %h = $proto->hoge;
 my @a = $proto->fuga;
-is_deeply \%h, \%orig;
-is_deeply \@a, \@orig;
+is \%h, \%orig;
+is \@a, \@orig;
 
 done_testing;

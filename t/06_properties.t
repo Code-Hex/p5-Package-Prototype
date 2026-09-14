@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More;
+use Test2::V0;
 use Test::LeakTrace;
 use Package::Prototype;
 
@@ -17,9 +17,9 @@ is ref($obj), 'Counter', 'class label';
 is $obj->count, 0, 'default reader';
 is $obj->increment, 1, 'writer returns assigned value';
 is $obj->count, 1, 'reader observes writer';
-is $obj->callback, $callback, 'CODE stored as data';
+ref_is $obj->callback, $callback, 'CODE stored as data';
 is $obj->callback->(), 'called', 'callback remains callable';
-is_deeply [$obj->items], [[1,2]], 'new readers preserve references in list context';
+is [$obj->items], [[1,2]], 'new readers preserve references in list context';
 ok !defined($obj->optional), 'undef value';
 is $obj->_hidden, 7, 'explicit underscore reader';
 is $spec->{count}{value}, 0, 'input specification unchanged';

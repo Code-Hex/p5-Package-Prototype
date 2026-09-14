@@ -35,8 +35,8 @@ my %args = (
     },
 
     test_requires => {
+        'Test2::V0' => '0',
         'Test::LeakTrace' => '0',
-        'Test::More' => '0.98',
         'Type::Tiny' => '2.000000',
     },
 
