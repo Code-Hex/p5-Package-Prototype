@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test2::V0;
-BEGIN { plan skip_all => 'Checked requires Perl 5.16' if $] < 5.016 }
+BEGIN { plan skip_all => 'Typed requires Perl 5.16' if $] < 5.016 }
 use File::Temp qw(tempfile);
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -24,22 +24,22 @@ sub _invoke_perl {
     return ($?, $stdout . $stderr);
 }
 
-my $checked = <<'SOURCE';
+my $typed_source = <<'SOURCE';
 use Types::Standard qw(Int ArrayRef Dict Tuple);
-use Package::Prototype::Checked
+use Package::Prototype::Typed
     integer => Int, ints => ArrayRef[Int], record => Dict[id => Int], pair => Tuple[Int, Int];
 my $input = 'bad';
 SOURCE
 for my $call ('integer("bad")', 'ints([$input, "bad"])',
               'record({id => "bad"})', 'pair([$input, "bad"])') {
-    my ($status, $output) = compile_only($checked . "$call;");
+    my ($status, $output) = compile_only($typed_source . "$call;");
     isnt $status, 0, "$call rejected by perl -c";
     like $output, qr/Compile-time type error/, 'type diagnostic';
-    ($status, $output) = execute_program($checked . "$call; print qq(reached\\n);");
+    ($status, $output) = execute_program($typed_source . "$call; print qq(reached\\n);");
     is $status, 0, "$call runs without validation";
     like $output, qr/reached/, 'body executes';
 }
-my ($status, $output) = compile_only($checked . 'integer($input);');
+my ($status, $output) = compile_only($typed_source . 'integer($input);');
 is $status, 0, 'unknown scalar remains unchecked';
 
 my $counted = <<'SOURCE';
@@ -48,7 +48,7 @@ BEGIN {
     our $calls = 0;
     sub assert_valid { ++$calls }
 }
-use Package::Prototype::Checked {}, value => bless({}, 'CountingType');
+use Package::Prototype::Typed {}, value => bless({}, 'CountingType');
 BEGIN { my $x = 'dynamic'; value($x) }
 CHECK { print "checks=$CountingType::calls\n" }
 value(42);
@@ -64,14 +64,14 @@ is $status, 0, 'counting type accepts literal during perl -c';
 like $output, qr/checks=1/, 'only the known literal is validated';
 
 for my $options ('{mode => "typo"}', '{mode => "checked"}', '{mode => undef}', '{other => 1}') {
-    ($status, $output) = compile_only("use Package::Prototype::Checked $options;");
+    ($status, $output) = compile_only("use Package::Prototype::Typed $options;");
     isnt $status, 0, "invalid options rejected: $options";
     like $output, qr/(?:Expected mode|Unknown check option)/, 'option diagnostic';
 }
 for my $reverse (0, 1) {
     my @imports = (
-        'use Package::Prototype::Checked {mode => "syntax"}, loose => Int;',
-        'use Package::Prototype::Checked {mode => "always"}, strict_value => Int;',
+        'use Package::Prototype::Typed {mode => "syntax"}, loose => Int;',
+        'use Package::Prototype::Typed {mode => "always"}, strict_value => Int;',
     );
     @imports = reverse @imports if $reverse;
     my $source = "use Types::Standard qw(Int);\n" . join("\n", @imports);
@@ -167,7 +167,7 @@ die 'native signature lost' unless $@ =~ /Too few arguments/;
 SOURCE
     is $status, 0, 'native signatures still enforce their own contract';
 }
-for my $module ('Checked', 'Shape') {
+for my $module ('Typed', 'Shape') {
     SKIP: {
         skip 'Shape requires Perl 5.22', 2 if $module eq 'Shape' && $] < 5.022;
         for my $arguments ("{mode => 'always'}", "{mode => 'always'}, 'unpaired'") {

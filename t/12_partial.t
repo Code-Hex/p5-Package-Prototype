@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test2::V0;
-BEGIN { plan skip_all => 'Checked requires Perl 5.16' if $] < 5.016 }
+BEGIN { plan skip_all => 'Typed requires Perl 5.16' if $] < 5.016 }
 use File::Temp qw(tempfile);
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -26,7 +26,7 @@ sub _invoke_perl {
 use strict;
 use warnings;
 use Types::Standard qw(Int Str ArrayRef Dict Tuple Optional Slurpy);
-use Package::Prototype::Checked { mode => 'always' },
+use Package::Prototype::Typed { mode => 'always' },
     ints => ArrayRef[Int],
     record => Dict[id => Int, name => Str],
     pair => Tuple[Int, Str],
@@ -99,7 +99,7 @@ isnt($status, 0, 'partial error occurs during compilation');
 unlike($output, qr/BODY EXECUTED/, 'program body never ran');
 ($status, $output) = compile_only(<<'SOURCE');
 BEGIN { package Custom; sub assert_valid { die 'PARTIAL VALUE PASSED' } }
-use Package::Prototype::Checked { mode => 'always' }, custom => bless({}, 'Custom');
+use Package::Prototype::Typed { mode => 'always' }, custom => bless({}, 'Custom');
 custom([$x, 'bad']);
 SOURCE
 is($status, 0, 'custom whole-value constraint deferred');
@@ -116,21 +116,21 @@ SOURCE
 }
 ($status, $output) = compile_only(<<'SOURCE');
 use Type::Tiny;
-use Package::Prototype::Checked { mode => 'always' }, custom_array => Type::Tiny->new(
+use Package::Prototype::Typed { mode => 'always' }, custom_array => Type::Tiny->new(
     parent => ArrayRef, parameters => [Int], constraint => sub { 1 });
 custom_array(['bad', $x]);
 SOURCE
 is($status, 0, 'custom parameter metadata does not imply standard semantics');
 ($status, $output) = execute_program(<<'SOURCE');
 use Type::Tiny;
-use Package::Prototype::Checked { mode => 'always' }, custom_array => Type::Tiny->new(
+use Package::Prototype::Typed { mode => 'always' }, custom_array => Type::Tiny->new(
     parent => ArrayRef, parameters => [Int], constraint => sub { 1 });
 custom_array(['bad', $x]);
 SOURCE
 is($status, 0, 'custom constraint really accepts that value');
 for my $expression ('Tuple[Int, (Optional[Str])->create_child_type(constraint => sub {1})]',
                     'Dict[id => Int, name => (Optional[Str])->create_child_type(constraint => sub {1})]') {
-    my $source = 'use Package::Prototype::Checked { mode => "always" }, derived => ' . $expression . ';'
+    my $source = 'use Package::Prototype::Typed { mode => "always" }, derived => ' . $expression . ';'
         . ($expression =~ /^Tuple/ ? 'derived([$x]);' : 'derived({id => $x});');
     ($status, $output) = compile_only($source);
     is($status, 0, 'derived optional slot conservatively deferred');

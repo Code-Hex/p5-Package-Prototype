@@ -98,7 +98,7 @@ during compilation. Outside C<main>, the shape name must be fully qualified
 in annotations and constructor calls (e.g. C<my App::Counter $counter>).
 
 Known arguments—including partial standard C<ArrayRef>, C<Tuple>, and C<Dict>
-structures—are validated as described in L<Package::Prototype::Checked>.
+structures—are validated as described in L<Package::Prototype::Typed>.
 Calls with potential list expansion are checked only at runtime in C<always> mode. Method names not
 declared in the shape, dynamic method dispatch, unannotated aliases, and return values are not checked at compile time.
 Reassignments are not tracked: later calls still use the declared signature.
@@ -126,7 +126,7 @@ The modes differ as follows. C<syntax> is the default.
     Known values under perl -c         Yes             Yes
     Known values at ordinary startup   No              Yes
     Actual values when called          No              Yes
-    Unknown variable values            Not checked     Checked on call
+    Unknown variable values            Not validated   Validated on call
 
 The mode is selected at import time using C<$^C>. C<syntax> enables checks
 only for compile-only invocations such as C<perl -c>. Calls executed in C<BEGIN>
@@ -145,7 +145,7 @@ To add compile-time checks and runtime validation wrappers, use C<always>:
     };
 
 Existing code relying on runtime validation must add this option.
-See L<Package::Prototype::Checked/CHECK MODES> for the limits of C<perl -c>
+See L<Package::Prototype::Typed/CHECK MODES> for the limits of C<perl -c>
 and the startup costs that remain in both modes.
 
 =cut

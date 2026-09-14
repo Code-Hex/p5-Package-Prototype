@@ -1,4 +1,4 @@
-package Package::Prototype::Checked;
+package Package::Prototype::Typed;
 use 5.016;
 use strict;
 use warnings;
@@ -43,12 +43,12 @@ sub import {
 
 =head1 NAME
 
-Package::Prototype::Checked - Experimental compile-only checks with optional runtime validation
+Package::Prototype::Typed - Experimental compile-only checks with optional runtime validation
 
 =head1 SYNOPSIS
 
     use Types::Standard qw(Int);
-    use Package::Prototype::Checked count_value => Int;
+    use Package::Prototype::Typed count_value => Int;
 
     my $value = count_value(42);
     # count_value('oops') fails under perl -c.
@@ -93,7 +93,7 @@ The modes differ as follows. C<syntax> is the default.
     Known values under perl -c         Yes             Yes
     Known values at ordinary startup   No              Yes
     Actual values when called          No              Yes
-    Unknown variable values            Not checked     Checked on call
+    Unknown variable values            Not validated   Validated on call
 
 The mode is selected at import time using C<$^C>. C<syntax> enables checks
 only for compile-only invocations such as C<perl -c>. Calls executed in C<BEGIN>
@@ -106,7 +106,7 @@ validating it. They retain their scalar prototype and one-argument contract.
 To validate values during ordinary compilation and execution, use C<always>:
 
     use Types::Standard qw(Int);
-    use Package::Prototype::Checked { mode => 'always' }, integer => Int;
+    use Package::Prototype::Typed { mode => 'always' }, integer => Int;
 
 Existing code relying on runtime validation must add this option.
 
