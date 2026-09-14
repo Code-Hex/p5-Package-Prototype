@@ -3,6 +3,7 @@ use 5.016;
 use strict;
 use warnings;
 use Package::Prototype ();
+use Package::Prototype::_Validation ();
 use Scalar::Util qw(blessed);
 
 sub import {
@@ -14,11 +15,7 @@ sub import {
         die "Invalid checker name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
         die "Expected a type object providing assert_valid"
             unless blessed($type) && $type->can('assert_valid');
-        my $validate = sub {
-            my $ok = eval { $type->assert_valid($_[0]); 1 };
-            die "Type check $name failed: $@" unless $ok;
-            return;
-        };
+        my $validate = Package::Prototype::_Validation::validator($type, $name);
         my $code = sub ($) {
             die "$name expects one argument" unless @_ == 1;
             $validate->($_[0]);
@@ -48,18 +45,32 @@ Package::Prototype::Checked - Experimental compile-time checks with runtime fall
 
 =head1 DESCRIPTION
 
-Exports named scalar identity functions backed by type objects providing
-C<assert_valid>. Direct calls with literal scalars, undef, and entirely constant array/hash
-references (including nested references) are checked while compiling. Expressions
-folded to constants by Perl are also checked. Structures containing variables,
-list expansion, or function calls are deferred; their expressions are never
-executed by this checker. Nesting deeper than 64 levels is deferred. Every call is also checked at runtime. Requires Perl 5.16 or later;
-loading the main Package::Prototype module does not enable this feature.
+Exports named scalar identity functions backed by type objects implementing
+C<assert_valid>. Direct calls with literal scalars, C<undef>, constant array or
+hash references, and expressions folded to constants by perl are verified at
+compile time (including during C<perl -c>).
 
-Type constraints are executed during compilation on copies of known values.
-Use deterministic, side-effect-free constraints. No coercion is performed.
-An accepted C<perl -c> run does not prove that dynamic values satisfy their types.
-Indirect calls and calls marked with C<&> receive runtime checks only.
-Names are installed in the caller's package, not lexically scoped.
+For canonical Type::Tiny C<ArrayRef>, C<Tuple>, and C<Dict> constraints, known
+elements within partially dynamic structures are checked at compile time.
+Standard C<Optional> elements may be omitted, and unexpected extra keys or
+elements are flagged.
+
+Unknown values are checked at runtime. List expansion, subroutine calls inside
+constructors, and dynamic hash keys defer the containing structure. Union types,
+custom structural types, Slurpy slots, and derived Optional slots are deferred
+when the value is partial. Structures nested beyond 64 levels are also deferred.
+Duplicate literal keys adhere to perl's last-key-wins rule.
+No argument expressions are executed speculatively during compilation.
+
+Every call is also checked at runtime. Passing C<perl -c> does not guarantee
+that dynamic values satisfy their types. Constraints execute on
+reconstructed copies of literal data, so type objects must be deterministic and
+free of side effects. Type coercion is not performed. Indirect calls and
+subroutines invoked with C<&> bypass compile-time checking and are validated
+exclusively at runtime.
+
+Requires Perl 5.16 or later. Loading Package::Prototype alone does not enable
+these checks. Functions are installed package-wide into the
+calling namespace.
 
 =cut

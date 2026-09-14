@@ -203,6 +203,68 @@ checked_literal(pTHX_ OP *op, unsigned depth)
     return result;
 }
 
+/* Compile-time AST node representation:
+ *   Kind 0: Literal constant (payload = scalar or reference)
+ *   Kind 1: Unknown or deferred expression (payload = NULL)
+ *   Kind 2: Array structure (payload = reference to an AV of child nodes)
+ *   Kind 3: Hash structure (payload = reference to an HV of child nodes)
+ */
+static SV *
+checked_node(pTHX_ int kind, SV *payload)
+{
+    AV *node = newAV();
+    SV *result = sv_2mortal(newRV_noinc((SV *)node));
+    av_push(node, newSViv(kind));
+    if (payload) av_push(node, SvREFCNT_inc(payload));
+    return result;
+}
+
+static SV *
+checked_structure(pTHX_ OP *op, unsigned depth)
+{
+    OP *child;
+    SV *value, *payload;
+    if (!op || depth > 64) return checked_node(aTHX_ 1, NULL);
+    value = checked_literal(aTHX_ op, depth);
+    if (value) return checked_node(aTHX_ 0, value);
+    if (op->op_type != OP_ANONLIST && op->op_type != OP_ANONHASH)
+        return checked_node(aTHX_ 1, NULL);
+    if (!(op->op_flags & OPf_KIDS)) return checked_node(aTHX_ 1, NULL);
+    child = cUNOPx(op)->op_first;
+    if (child->op_type != OP_PUSHMARK) return checked_node(aTHX_ 1, NULL);
+    payload = sv_2mortal(newRV_noinc(op->op_type == OP_ANONLIST
+        ? (SV *)newAV() : (SV *)newHV()));
+    child = OpSIBLING(child);
+    while (child) {
+        SV *key = NULL;
+        if (op->op_type == OP_ANONHASH) {
+            key = checked_literal(aTHX_ child, depth + 1);
+            if (!key || !SvOK(key) || SvROK(key)) return checked_node(aTHX_ 1, NULL);
+            child = OpSIBLING(child);
+            if (!child) return checked_node(aTHX_ 1, NULL);
+        }
+        /* These OPs produce exactly one item in constructor list context. */
+        switch (child->op_type) {
+            case OP_CONST:
+            case OP_PADSV:
+            case OP_RV2SV:
+            case OP_UNDEF:
+            case OP_ANONLIST:
+            case OP_ANONHASH:
+                break;
+            default:
+                return checked_node(aTHX_ 1, NULL);
+        }
+        value = checked_structure(aTHX_ child, depth + 1);
+        if (key)
+            hv_store_ent((HV *)SvRV(payload), key, SvREFCNT_inc(value), 0);
+        else
+            av_push((AV *)SvRV(payload), SvREFCNT_inc(value));
+        child = OpSIBLING(child);
+    }
+    return checked_node(aTHX_ op->op_type == OP_ANONLIST ? 2 : 3, payload);
+}
+
 static OP *
 checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
 {
@@ -218,10 +280,15 @@ checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
         ENTER;
         SAVETMPS;
         value = checked_literal(aTHX_ arg, 0);
-        if (!value) { FREETMPS; LEAVE; return op; }
+        if (!value)
+            value = checked_structure(aTHX_ arg, 0);
+        else
+            value = checked_node(aTHX_ 0, value);
+
         save_scalar(PL_errgv);
         PUSHMARK(SP);
         XPUSHs(value);
+        XPUSHs(&PL_sv_yes);
         PUTBACK;
         call_sv(validator, G_DISCARD | G_EVAL);
         if (SvTRUE(ERRSV))
@@ -289,19 +356,25 @@ shape_call(pTHX_ OP *op)
         SV **validator = av_fetch(validators, index++, 0);
         dSP;
         if (!validator || !IsCodeRef(*validator)) continue;
+
         ENTER;
         SAVETMPS;
         value = checked_literal(aTHX_ arg, 0);
-        if (value) {
-            save_scalar(PL_errgv);
-            PUSHMARK(SP);
-            XPUSHs(value);
-            PUTBACK;
-            call_sv(*validator, G_DISCARD | G_EVAL);
-            if (SvTRUE(ERRSV))
-                croak("Compile-time type error at %s line %" IVdf ": %s",
-                      CopFILE(PL_curcop), (IV)CopLINE(PL_curcop), SvPV_nolen(ERRSV));
-        }
+        if (!value)
+            value = checked_structure(aTHX_ arg, 0);
+        else
+            value = checked_node(aTHX_ 0, value);
+
+        save_scalar(PL_errgv);
+        PUSHMARK(SP);
+        XPUSHs(value);
+        XPUSHs(&PL_sv_yes);
+        PUTBACK;
+        call_sv(*validator, G_DISCARD | G_EVAL);
+        if (SvTRUE(ERRSV))
+            croak("Compile-time type error at %s line %" IVdf ": %s",
+                  CopFILE(PL_curcop), (IV)CopLINE(PL_curcop), SvPV_nolen(ERRSV));
+
         FREETMPS;
         LEAVE;
     }
