@@ -1,14 +1,14 @@
 use v5.16;
 use warnings;
 use Types::Standard qw(Dict Int Str);
-use Package::Prototype::Checked { mode => 'always' },
-    checked_user => Dict[
+use Package::Prototype::Typed { mode => 'always' },
+    user_record => Dict[
         user_id      => Int,
         display_name => Str,
     ];
 
 my $display_name = $ARGV[0];
-my $user = checked_user({
+my $user = user_record({
     user_id      => 42,
     display_name => $display_name,
 });

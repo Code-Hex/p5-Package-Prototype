@@ -165,7 +165,7 @@ XS(XS_prototype_method)
 /* Reconstruct literal values from safe syntax tree nodes (OP_CONST, OP_UNDEF,
  * OP_ANONLIST, OP_ANONHASH). Does not execute arbitrary opcodes. */
 static SV *
-checked_literal(pTHX_ OP *op, unsigned depth)
+literal_value(pTHX_ OP *op, unsigned depth)
 {
     OP *child;
     SV *result;
@@ -186,7 +186,7 @@ checked_literal(pTHX_ OP *op, unsigned depth)
     result = sv_2mortal(newRV_noinc(op->op_type == OP_ANONLIST
         ? (SV *)newAV() : (SV *)newHV()));
     while (child) {
-        SV *value = checked_literal(aTHX_ child, depth + 1);
+        SV *value = literal_value(aTHX_ child, depth + 1);
         if (!value) return NULL;
         if (op->op_type == OP_ANONLIST) {
             av_push((AV *)SvRV(result), SvREFCNT_inc(value));
@@ -194,7 +194,7 @@ checked_literal(pTHX_ OP *op, unsigned depth)
             SV *key = value;
             child = OpSIBLING(child);
             if (!child || !SvOK(key) || SvROK(key)) return NULL;
-            value = checked_literal(aTHX_ child, depth + 1);
+            value = literal_value(aTHX_ child, depth + 1);
             if (!value) return NULL;
             hv_store_ent((HV *)SvRV(result), key, SvREFCNT_inc(value), 0);
         }
@@ -210,7 +210,7 @@ checked_literal(pTHX_ OP *op, unsigned depth)
  *   Kind 3: Hash structure (payload = reference to an HV of child nodes)
  */
 static SV *
-checked_node(pTHX_ int kind, SV *payload)
+validation_node(pTHX_ int kind, SV *payload)
 {
     AV *node = newAV();
     SV *result = sv_2mortal(newRV_noinc((SV *)node));
@@ -220,28 +220,28 @@ checked_node(pTHX_ int kind, SV *payload)
 }
 
 static SV *
-checked_structure(pTHX_ OP *op, unsigned depth)
+structure_node(pTHX_ OP *op, unsigned depth)
 {
     OP *child;
     SV *value, *payload;
-    if (!op || depth > 64) return checked_node(aTHX_ 1, NULL);
-    value = checked_literal(aTHX_ op, depth);
-    if (value) return checked_node(aTHX_ 0, value);
+    if (!op || depth > 64) return validation_node(aTHX_ 1, NULL);
+    value = literal_value(aTHX_ op, depth);
+    if (value) return validation_node(aTHX_ 0, value);
     if (op->op_type != OP_ANONLIST && op->op_type != OP_ANONHASH)
-        return checked_node(aTHX_ 1, NULL);
-    if (!(op->op_flags & OPf_KIDS)) return checked_node(aTHX_ 1, NULL);
+        return validation_node(aTHX_ 1, NULL);
+    if (!(op->op_flags & OPf_KIDS)) return validation_node(aTHX_ 1, NULL);
     child = cUNOPx(op)->op_first;
-    if (child->op_type != OP_PUSHMARK) return checked_node(aTHX_ 1, NULL);
+    if (child->op_type != OP_PUSHMARK) return validation_node(aTHX_ 1, NULL);
     payload = sv_2mortal(newRV_noinc(op->op_type == OP_ANONLIST
         ? (SV *)newAV() : (SV *)newHV()));
     child = OpSIBLING(child);
     while (child) {
         SV *key = NULL;
         if (op->op_type == OP_ANONHASH) {
-            key = checked_literal(aTHX_ child, depth + 1);
-            if (!key || !SvOK(key) || SvROK(key)) return checked_node(aTHX_ 1, NULL);
+            key = literal_value(aTHX_ child, depth + 1);
+            if (!key || !SvOK(key) || SvROK(key)) return validation_node(aTHX_ 1, NULL);
             child = OpSIBLING(child);
-            if (!child) return checked_node(aTHX_ 1, NULL);
+            if (!child) return validation_node(aTHX_ 1, NULL);
         }
         /* These OPs produce exactly one item in constructor list context. */
         switch (child->op_type) {
@@ -253,20 +253,20 @@ checked_structure(pTHX_ OP *op, unsigned depth)
             case OP_ANONHASH:
                 break;
             default:
-                return checked_node(aTHX_ 1, NULL);
+                return validation_node(aTHX_ 1, NULL);
         }
-        value = checked_structure(aTHX_ child, depth + 1);
+        value = structure_node(aTHX_ child, depth + 1);
         if (key)
             hv_store_ent((HV *)SvRV(payload), key, SvREFCNT_inc(value), 0);
         else
             av_push((AV *)SvRV(payload), SvREFCNT_inc(value));
         child = OpSIBLING(child);
     }
-    return checked_node(aTHX_ op->op_type == OP_ANONLIST ? 2 : 3, payload);
+    return validation_node(aTHX_ op->op_type == OP_ANONLIST ? 2 : 3, payload);
 }
 
 static OP *
-checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
+validate_call(pTHX_ OP *op, GV *namegv, SV *validator)
 {
     OP *first, *arg;
     SV *value;
@@ -279,11 +279,11 @@ checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
         dSP;
         ENTER;
         SAVETMPS;
-        value = checked_literal(aTHX_ arg, 0);
+        value = literal_value(aTHX_ arg, 0);
         if (!value)
-            value = checked_structure(aTHX_ arg, 0);
+            value = structure_node(aTHX_ arg, 0);
         else
-            value = checked_node(aTHX_ 0, value);
+            value = validation_node(aTHX_ 0, value);
 
         save_scalar(PL_errgv);
         PUSHMARK(SP);
@@ -359,11 +359,11 @@ shape_call(pTHX_ OP *op)
 
         ENTER;
         SAVETMPS;
-        value = checked_literal(aTHX_ arg, 0);
+        value = literal_value(aTHX_ arg, 0);
         if (!value)
-            value = checked_structure(aTHX_ arg, 0);
+            value = structure_node(aTHX_ arg, 0);
         else
-            value = checked_node(aTHX_ 0, value);
+            value = validation_node(aTHX_ 0, value);
 
         save_scalar(PL_errgv);
         PUSHMARK(SP);
@@ -437,9 +437,9 @@ CODE:
 #if PERL_VERSION >= 16
     if (!IsCodeRef(code) || !IsCodeRef(validator))
         croak("Expected code references");
-    cv_set_call_checker((CV *)SvRV(code), checked_call, validator);
+    cv_set_call_checker((CV *)SvRV(code), validate_call, validator);
 #else
-    croak("Package::Prototype::Checked requires Perl 5.16 or later");
+    croak("Package::Prototype::Typed requires Perl 5.16 or later");
 #endif
 
 void

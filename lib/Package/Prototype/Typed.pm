@@ -1,4 +1,4 @@
-package Package::Prototype::Checked;
+package Package::Prototype::Typed;
 use 5.016;
 use strict;
 use warnings;
@@ -15,7 +15,7 @@ sub import {
     require Package::Prototype::_Validation if $compile;
     while (@_) {
         my ($name, $type) = splice @_, 0, 2;
-        die "Invalid checker name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
+        die "Invalid typed function name" unless defined($name) && $name =~ /\A[A-Za-z_]\w*\z/;
         die "Expected a type object providing assert_valid"
             unless blessed($type) && $type->can('assert_valid');
         my $validate = $compile ? Package::Prototype::_Validation::validator($type, $name) : undef;
@@ -43,12 +43,12 @@ sub import {
 
 =head1 NAME
 
-Package::Prototype::Checked - Experimental compile-only checks with optional runtime validation
+Package::Prototype::Typed - Experimental compile-only checks with optional runtime validation
 
 =head1 SYNOPSIS
 
     use Types::Standard qw(Int);
-    use Package::Prototype::Checked count_value => Int;
+    use Package::Prototype::Typed count_value => Int;
 
     my $value = count_value(42);
     # count_value('oops') fails under perl -c.
@@ -66,8 +66,8 @@ elements within partially dynamic structures are checked at compile time.
 Standard C<Optional> elements may be omitted, and unexpected extra keys or
 elements are flagged.
 
-Unknown values are checked at runtime only in C<always> mode. List expansion, subroutine calls inside
-constructors, and dynamic hash keys defer the containing structure. Union types,
+Unknown values are validated at runtime only in C<always> mode. Dynamic keys,
+subroutine calls, and list expansions defer validation of the enclosing structure. Union types,
 custom structural types, Slurpy slots, and derived Optional slots are deferred
 when the value is partial. Structures nested beyond 64 levels are also deferred.
 Duplicate literal keys adhere to perl's last-key-wins rule.
@@ -93,7 +93,7 @@ The modes differ as follows. C<syntax> is the default.
     Known values under perl -c         Yes             Yes
     Known values at ordinary startup   No              Yes
     Actual values when called          No              Yes
-    Unknown variable values            Not checked     Checked on call
+    Unknown variable values            Not validated   Validated on call
 
 The mode is selected at import time using C<$^C>. C<syntax> enables checks
 only for compile-only invocations such as C<perl -c>. Calls executed in C<BEGIN>
@@ -106,7 +106,7 @@ validating it. They retain their scalar prototype and one-argument contract.
 To validate values during ordinary compilation and execution, use C<always>:
 
     use Types::Standard qw(Int);
-    use Package::Prototype::Checked { mode => 'always' }, integer => Int;
+    use Package::Prototype::Typed { mode => 'always' }, integer => Int;
 
 Existing code relying on runtime validation must add this option.
 

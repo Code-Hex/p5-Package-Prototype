@@ -2,8 +2,8 @@ Revision history for Perl extension Package-Prototype
 
 {{$NEXT}}
     - Validate known elements of partial standard ArrayRef, Tuple and Dict values.
-    - Add experimental Checked functions and typed lexical Shape method checks.
-    - Check known scalar and reference literals during compilation; retain runtime validation.
+    - Add experimental Typed functions and typed lexical Shape method checks.
+    - Check known scalar and reference literals under perl -c by default; opt into runtime validation with always.
 
 0.02 2026-09-14T09:13:38Z
 

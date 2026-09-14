@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test2::V0;
-BEGIN { plan skip_all => 'Checked requires Perl 5.16' if $] < 5.016 }
+BEGIN { plan skip_all => 'Typed requires Perl 5.16' if $] < 5.016 }
 use File::Temp qw(tempfile);
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -22,7 +22,7 @@ sub execute_program {
 sub _invoke_perl {
     my ($source, @switches) = @_;
     my ($fh, $file) = tempfile(SUFFIX => '.pl', UNLINK => 1);
-    print {$fh} "use strict; use warnings;\nuse Types::Standard qw(Int Str ArrayRef HashRef);\nuse Package::Prototype::Checked { mode => 'always' }, integer => Int, text => Str, integers => ArrayRef[Int], table => HashRef[ArrayRef[Int]];\n", $source;
+    print {$fh} "use strict; use warnings;\nuse Types::Standard qw(Int Str ArrayRef HashRef);\nuse Package::Prototype::Typed { mode => 'always' }, integer => Int, text => Str, integers => ArrayRef[Int], table => HashRef[ArrayRef[Int]];\n", $source;
     close $fh;
     my $err = gensym;
     my $pid = open3(undef, my $out, $err, $^X,

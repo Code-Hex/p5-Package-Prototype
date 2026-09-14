@@ -26,11 +26,11 @@ and work with native-signature bodies. Return values are not type checked.
 The runtime object has an independent Package::Prototype stash; the shape label
 is not an `isa` relationship to the factory package.
 
-`Package::Prototype::Checked` (Perl 5.16+) provides named scalar identity functions:
+`Package::Prototype::Typed` (Perl 5.16+) provides named scalar identity functions:
 
 ```perl
 use Types::Standard qw(Int ArrayRef);
-use Package::Prototype::Checked { mode => 'always' },
+use Package::Prototype::Typed { mode => 'always' },
     integer => Int,
     integers => ArrayRef[Int];
 
@@ -44,15 +44,19 @@ the calls to inspect. `Shape` requires Perl 5.22; its native annotation must be
 fully qualified outside `main`, e.g. `my App::Counter $obj` for a shape declared
 in package `App`. The main module retains its existing minimum Perl version.
 
+The unreleased `Package::Prototype::Checked` module has been renamed to
+`Package::Prototype::Typed`. Update imports to the new name; no alias is provided.
+The `syntax` and `always` modes are unchanged.
+
 ## Reproduce
 
 After `perl Build.PL && ./Build`:
 
 ```sh
-perl -Iblib/lib -Iblib/arch -c examples/checked/counter.pl
-perl -Iblib/lib -Iblib/arch examples/checked/counter.pl
+perl -Iblib/lib -Iblib/arch -c examples/typed/counter.pl
+perl -Iblib/lib -Iblib/arch examples/typed/counter.pl
 # Prints 42 twice; dynamic invalid input is rejected before assignment.
-perl -Iblib/lib -Iblib/arch -c examples/checked/rejected.pl
+perl -Iblib/lib -Iblib/arch -c examples/typed/rejected.pl
 # Deliberately exits nonzero, reporting rejected.pl line 7.
 ./Build test
 ```
@@ -65,7 +69,7 @@ input above and below select `always` explicitly. Existing users who relied on
 runtime validation must add that option.
 
 In `syntax` mode, unknown inputs stay unchecked, including calls in BEGIN blocks.
-Shape installs the original CODE without a type/arity wrapper. Checked retains
+Shape installs the original CODE without a type/arity wrapper. Typed retains
 its scalar identity call and one-argument contract. Native signatures and
 constructor validation remain effective.
 
@@ -80,7 +84,7 @@ column applies only under `perl -c`; runtime validation is disabled.
 
 | Pattern | Compile time | Runtime |
 |---|---|---|
-| Direct Checked function, scalar literal or undef | Validate copy | Validate actual value |
+| Direct Typed function, scalar literal or undef | Validate copy | Validate actual value |
 | Partial standard ArrayRef/Tuple/Dict with fixed positions/keys | Check known elements and fixed shape; defer unknown values | Validate whole value |
 | Constant nested array/hash reference | Validate reconstructed copy | Validate actual value |
 | Expression already folded by Perl | Validate resulting constant | Validate actual value |
@@ -89,7 +93,7 @@ column applies only under `perl -c`; runtime validation is disabled.
 | Scalar variable argument | Value unknown; method arity can be checked | Validate actual value |
 | Array/list expansion in method arguments | Defer the entire call | Factory wrapper |
 | Function calls inside reference constructors | Defer, never execute speculatively | Validate actual value |
-| Indirect or ampersand Checked call | Deferred | Identity function still validates |
+| Indirect or ampersand Typed call | Deferred | Identity function still validates |
 | Unannotated alias or dynamic method name | Deferred | Factory wrapper, if still installed |
 | Reassignment, prototype replacement, return types | Not inferred | No receiver/return-type guarantee |
 
@@ -113,21 +117,21 @@ Structures nested beyond 64 levels are deferred to runtime.
 
 A user has an integer ID and a display name supplied on the command line.
 `Dict` describes the required fields. The import creates a function named
-`checked_user`: it validates a hash reference and returns it unchanged. It does
+`user_record`: it validates a hash reference and returns it unchanged. It does
 not save the user or create a Package::Prototype object.
 
 ```perl
 use v5.16;
 use warnings;
 use Types::Standard qw(Dict Int Str);
-use Package::Prototype::Checked { mode => 'always' },
-    checked_user => Dict[
+use Package::Prototype::Typed { mode => 'always' },
+    user_record => Dict[
         user_id      => Int,
         display_name => Str,
     ];
 
 my $display_name = $ARGV[0];
-my $user = checked_user({
+my $user = user_record({
     user_id      => 42,
     display_name => $display_name,
 });
@@ -138,8 +142,8 @@ print "$user->{user_id}: $user->{display_name}\n";
 Run the example after building the module:
 
 ```sh
-perl -Iblib/lib -Iblib/arch -c examples/checked/user.pl
-perl -Iblib/lib -Iblib/arch examples/checked/user.pl Alice
+perl -Iblib/lib -Iblib/arch -c examples/typed/user.pl
+perl -Iblib/lib -Iblib/arch examples/typed/user.pl Alice
 # Prints: 42: Alice
 ```
 
@@ -171,7 +175,7 @@ Union types, Slurpy slots, and derived `Optional` types are conservatively defer
 
 1. **Function call checking:** In `Perl_ck_entersub`, Perl resolves a target CV
    before running its call checker. Using `cv_set_call_checker` allows
-   `Package::Prototype::Checked` to validate arguments on specific identity
+   `Package::Prototype::Typed` to validate arguments on specific identity
    functions without registering a global hook for subroutine calls.
 2. **Literal reconstruction:** The checker recognizes literals and reference
    constructors (`OP_CONST`, `OP_UNDEF`, `OP_ANONLIST`, and `OP_ANONHASH`).
