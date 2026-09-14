@@ -69,8 +69,8 @@ sub _partial {
     return;
 }
 
-# Ensure the type is an uncustomized instance of the parent's parameterized type.
-# User-defined subtypes can share parents and parameters but implement different constraints.
+# Match the cached standard type, not just its parent and parameters.
+# Custom types may use the same metadata for a different constraint.
 sub _canonical {
     my ($type) = @_;
     return 0 unless ref($type) eq 'Type::Tiny' && $type->is_parameterized;
