@@ -66,22 +66,22 @@ is($status, 0, 'runtime success');
 is($output, '42hello', 'identity functions preserve values');
 for my $source ('integer(undef)', 'integers([1, "bad"])',
                 'table({a => [1, "bad"]})') {
-    ($status, $output) = run_perl($source, 1);
+    ($status, $output) = compile_only($source);
     isnt($status, 0, 'reject constant structure');
     like($output, qr/Compile-time type error/, 'static diagnostic');
 }
 for my $source ('integer(1 + 2)', 'integers([])', 'integers([1, 2])',
                 'table({a => [1, 2]})') {
-    ($status, $output) = run_perl($source, 1);
+    ($status, $output) = compile_only($source);
     is($status, 0, 'accept constant structure or folded expression');
 }
 for my $source ('my $v = "bad"; integers([1, $v]);',
                 'sub input { die "BODY EXECUTED" }; integers([input()]);',
                 'my @v = ("bad"); integers([@v]);') {
-    ($status, $output) = run_perl($source, 1);
+    ($status, $output) = compile_only($source);
     is($status, 0, 'dynamic structures deferred');
     unlike($output, qr/BODY EXECUTED/, 'no speculative evaluation');
-    ($status, $output) = run_perl($source, 0);
+    ($status, $output) = execute_program($source);
     isnt($status, 0, 'dynamic structure fails at runtime');
 }
 done_testing;
