@@ -106,9 +106,10 @@ use Package::Prototype::Checked
         display_name => Str,
     ];
 
+my $display_name = $ARGV[0];
 my $user = checked_user({
     user_id      => 42,
-    display_name => $ARGV[0],
+    display_name => $display_name,
 });
 
 print "$user->{user_id}: $user->{display_name}\n";
@@ -122,7 +123,7 @@ perl -Iblib/lib -Iblib/arch examples/checked/user.pl Alice
 # Prints: 42: Alice
 ```
 
-The compiler can check `user_id => 42`. It cannot know `$ARGV[0]`, so the display
+The compiler can check `user_id => 42`. It cannot know `$display_name`, which comes from `$ARGV[0]`, so the display
 name is checked at runtime. Running without a name fails because `undef` does
 not satisfy `Str`.
 

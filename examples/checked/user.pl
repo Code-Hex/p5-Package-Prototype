@@ -7,9 +7,10 @@ use Package::Prototype::Checked
         display_name => Str,
     ];
 
+my $display_name = $ARGV[0];
 my $user = checked_user({
     user_id      => 42,
-    display_name => $ARGV[0],
+    display_name => $display_name,
 });
 
 print "$user->{user_id}: $user->{display_name}\n";
