@@ -1,0 +1,18 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  perl:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        perl: ['5.8.9', '5.36', '5.38', '5.40', '5.42', '5.44']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
+      - run: cpanm --notest Module::Build::XSUtil Test::More Test::LeakTrace
+      - run: perl Build.PL && ./Build && ./Build test
