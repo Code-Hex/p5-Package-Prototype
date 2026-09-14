@@ -94,10 +94,9 @@ Structures nested beyond 64 levels are deferred to runtime.
    before running its call checker. Using `cv_set_call_checker` allows
    `Package::Prototype::Checked` to validate arguments on specific identity
    functions without registering a global hook for subroutine calls.
-2. **Safe literal reconstruction:** The checker inspects syntax trees for constant
-   opcodes (`OP_CONST`, `OP_UNDEF`, `OP_ANONLIST`, and `OP_ANONHASH`). Literals
-   are copied into private structures for verification; arbitrary opcodes and
-   argument expressions are never executed during compilation.
+2. **Literal reconstruction:** The checker recognizes literals and reference
+   constructors (`OP_CONST`, `OP_UNDEF`, `OP_ANONLIST`, and `OP_ANONHASH`).
+   It builds private copies of known values without executing argument OPs.
 3. **Lexical type pad metadata:** Core Perl verifies typed hash fields via
    `PadnameTYPE` (`Perl_check_hash_fields_and_hekify`). `Shape` uses this same
    pad metadata to bind annotated lexicals (`my Counter $obj`) to declared
