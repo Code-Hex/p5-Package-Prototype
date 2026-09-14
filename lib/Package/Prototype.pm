@@ -217,6 +217,18 @@ Code references are installed directly. Perl handles argument validation,
 calling context, and exceptions. The module does not enable language features
 in the caller or require a newer Perl merely to use its existing API.
 
+Perl 5.44 also supports experimental named parameters in signatures:
+
+    use v5.44;
+    no warnings 'experimental::signature_named_parameters';
+    my $obj = Package::Prototype->bless({
+        greet => sub ($self, :$name, :$suffix = '!') { "$name$suffix" },
+    });
+    say $obj->greet(name => 'Perl');
+
+This works with C<bless>, C<prototype>, and C<create> methods. It requires
+Perl 5.44; the module does not emulate named signatures on earlier releases.
+
 =head1 SEE ALSO
 
 L<Package::Anon>
