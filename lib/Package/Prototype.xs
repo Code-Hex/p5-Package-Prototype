@@ -78,12 +78,12 @@ add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
 static CV *
 make_closure(pTHX_ SV *retval)
 {
-    /* Fetch magic can throw, so copy before allocating the getter. */
-    SV *value = newSVsv(retval);
+    /* Release the destination even when fetching magic throws on older Perls. */
+    SV *value = sv_newmortal();
+    sv_setsv(value, retval);
     CV *xsub = newXS(NULL /* anonymous */, XS_prototype_getter, __FILE__);
     /* Magic owns the scalar for exactly as long as the getter CV. */
     sv_magicext((SV *)xsub, value, PERL_MAGIC_ext, &getter_vtbl, NULL, 0);
-    SvREFCNT_dec(value);
     return xsub;
 }
 
