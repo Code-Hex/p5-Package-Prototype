@@ -229,6 +229,10 @@ Perl 5.44 also supports experimental named parameters in signatures:
 This works with C<bless>, C<prototype>, and C<create> methods. It requires
 Perl 5.44; the module does not emulate named signatures on earlier releases.
 
+Unicode property and method names are supported, including dynamic replacement.
+Use C<use utf8> when writing non-ASCII names in source. On Perl 5.36 and later,
+getters preserve the boolean identity of C<builtin::true> and C<builtin::false>.
+
 =head1 SEE ALSO
 
 L<Package::Anon>

@@ -53,26 +53,17 @@ prototype_gv_sv(pTHX_ HV *stash, SV *namesv)
 }
 
 static void
-add_method(pTHX_ HV *stash, SV *method, CV *code, char *key, I32 keylen)
+add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
 {
     GV *gv;
     gv = prototype_gv_sv(aTHX_ stash, method);
     GvCV_set(gv, code);
-    hv_store(stash, key, keylen, (SV *)gv, 0);
+    hv_store_ent(stash, method, (SV *)gv, 0);
 #if PERL_VERSION >= 10
     mro_method_changed_in(stash);
 #else
     PL_sub_generation++;
 #endif
-}
-
-static void
-add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
-{
-    char *key;
-    STRLEN keylen;
-    key = SvPV(method, keylen);
-    add_method(aTHX_ stash, method, code, key, keylen);
 }
 
 static CV *
@@ -190,7 +181,7 @@ PPCODE:
     }
 
     stash = (HV *)sv_2mortal((SV *)newHV());
-    hv_name_set(stash, pkg, pkglen, 0);
+    hv_name_set(stash, pkg, pkglen, pkgsv && SvUTF8(pkgsv) ? SVf_UTF8 : 0);
 
     install_prototype_method(aTHX_ stash);
 
@@ -201,9 +192,9 @@ PPCODE:
         char* key = hv_iterkey(entry, &keylen);
         if (0 < keylen && key[0] != '_') {
             SV *method = hv_iterkeysv(entry);
-            SV *val = hv_delete(hv, key, keylen, 1);
+            SV *val = hv_delete_ent(hv, method, 0, 0);
             CV *cv = IsCodeRef(val) ? (CV *)SvREFCNT_inc(SvRV(val)) : make_closure(aTHX_ val);
-            add_method(aTHX_ stash, method, cv, key, keylen);
+            add_method_sv(aTHX_ stash, method, cv);
         }
     }
 
