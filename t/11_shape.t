@@ -1,0 +1,75 @@
+use strict;
+use warnings;
+use Test::More;
+BEGIN { plan skip_all => 'Shape requires Perl 5.22' if $] < 5.022 }
+use File::Temp qw(tempfile);
+use IPC::Open3;
+use Symbol qw(gensym);
+use Cwd qw(abs_path);
+
+sub run_perl {
+    my ($source, $compile) = @_;
+    my ($fh, $file) = tempfile(SUFFIX => '.pl', UNLINK => 1);
+    print {$fh} <<'PRELUDE', $source;
+use strict;
+use warnings;
+use Types::Standard qw(Int ArrayRef);
+use Package::Prototype::Shape Counter => { count => [], set_count => [Int], values => [ArrayRef[Int]] };
+my $value = 0;
+my Counter $counter = Counter->create(
+ count => sub { $value }, set_count => sub { $value = $_[1] }, values => sub { $_[1] });
+PRELUDE
+    close $fh;
+    my $err = gensym;
+    my $pid = open3(undef, my $out, $err, $^X,
+        '-I'.abs_path('blib/lib'), '-I'.abs_path('blib/arch'),
+        ($compile ? '-c' : ()), $file);
+    my $stdout = do { local $/; <$out> };
+    my $stderr = do { local $/; <$err> };
+    waitpid($pid, 0);
+    return ($?, $stdout . $stderr);
+}
+for my $source ('$counter->set_count("bad");', '$counter->set_count(undef);',
+                '$counter->values([1,"bad"]);', '$counter->set_count();',
+                '$counter->count(1);', 'sub later { $counter->set_count("bad") }') {
+    my ($status, $output) = run_perl($source, 1);
+    isnt($status, 0, 'annotated receiver rejects bad literal or arity');
+    like($output, qr/Compile-time (?:type|arity) error.*\.pl line 8/s, 'diagnostic has source');
+}
+for my $source ('$counter->set_count(1);', '$counter->values([1,2]);',
+                'my $v = "bad"; $counter->set_count($v);',
+                'my @v = (1); $counter->set_count(@v);',
+                'my $alias = $counter; $alias->set_count("bad");',
+                'my $method = "set_count"; $counter->$method("bad");',
+                '{ my $counter; $counter->set_count("bad"); }',
+                '$counter->other_method("anything");') {
+    my ($status, $output) = run_perl($source, 1);
+    is($status, 0, 'accept valid or explicitly deferred call');
+}
+for my $source ('my $v = "bad"; $counter->set_count($v);',
+                'my @v = ("bad"); $counter->set_count(@v);',
+                'my @v = (1,2); $counter->set_count(@v);',
+                'my $alias = $counter; $alias->set_count("bad");',
+                'my $method = "set_count"; $counter->$method("bad");') {
+    my ($status, $output) = run_perl($source, 0);
+    isnt($status, 0, 'runtime wrapper checks deferred call');
+}
+my ($status, $output) = run_perl('my $v = "bad"; eval { $counter->set_count($v) }; print $counter->count;', 0);
+is($status, 0, 'failed validation caught');
+is($output, '0', 'method body did not mutate value');
+($status, $output) = run_perl('$counter->set_count(42); print $counter->count;', 0);
+is($status, 0, 'valid runtime call');
+is($output, '42', 'method returns original result');
+($status, $output) = run_perl('die "BODY EXECUTED";', 1);
+is($status, 0, 'no runtime execution under perl -c');
+unlike($output, qr/BODY EXECUTED/, 'no body side effect');
+($status, $output) = run_perl(<<'SOURCE', 0);
+use Package::Prototype::Shape Context => { result => [] };
+my Context $c = Context->create(result => sub { !defined(wantarray) ? print('V') : wantarray ? (1,2) : 'S' });
+print scalar($c->result);
+print join('', $c->result);
+$c->result;
+SOURCE
+is($status, 0, 'context wrapper runs');
+is($output, 'S12V', 'scalar list and void context preserved');
+done_testing;
