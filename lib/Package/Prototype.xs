@@ -162,7 +162,8 @@ XS(XS_prototype_method)
 
 /* A call checker only sees direct calls resolved during compilation. */
 #if PERL_VERSION >= 16
-/* Materialize only syntax with no runtime dependencies. Never execute OPs. */
+/* Reconstruct literal values from safe syntax tree nodes (OP_CONST, OP_UNDEF,
+ * OP_ANONLIST, OP_ANONHASH). Does not execute arbitrary opcodes. */
 static SV *
 checked_literal(pTHX_ OP *op, unsigned depth)
 {
