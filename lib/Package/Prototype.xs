@@ -26,6 +26,11 @@ extern "C" {
 #define IsArrayRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVAV)
 #define IsHashRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVHV)
 #define IsCodeRef(sv) (SvROK(sv) && !SvOBJECT(SvRV(sv)) && SvTYPE(SvRV(sv)) == SVt_PVCV)
+#ifndef OpSIBLING
+# define OpSIBLING(o) ((o)->op_sibling)
+# define OpHAS_SIBLING(o) (OpSIBLING(o) != NULL)
+#endif
+
 #define WANT_ARRAY GIMME_V == G_ARRAY
 
 XS(XS_prototype_method);
@@ -155,6 +160,36 @@ XS(XS_prototype_method)
     XSRETURN(0);
 }
 
+/* A call checker only sees direct calls resolved during compilation. */
+#if PERL_VERSION >= 16
+static OP *
+checked_call(pTHX_ OP *op, GV *namegv, SV *validator)
+{
+    OP *first, *arg;
+    op = ck_entersub_args_proto(aTHX_ op, namegv,
+                               sv_2mortal(newSVpvs("$")));
+    first = cUNOPx(op)->op_first;
+    if (!OpHAS_SIBLING(first)) first = cUNOPx(first)->op_first;
+    arg = OpSIBLING(first);
+    if (arg && OpHAS_SIBLING(arg) && arg->op_type == OP_CONST) {
+        dSP;
+        ENTER;
+        SAVETMPS;
+        save_scalar(PL_errgv);
+        PUSHMARK(SP);
+        XPUSHs(sv_2mortal(newSVsv(cSVOPx_sv(arg))));
+        PUTBACK;
+        call_sv(validator, G_DISCARD | G_EVAL);
+        if (SvTRUE(ERRSV))
+            croak("Compile-time type error at %s line %" IVdf ": %s",
+                  CopFILE(PL_curcop), (IV)CopLINE(PL_curcop), SvPV_nolen(ERRSV));
+        FREETMPS;
+        LEAVE;
+    }
+    return op;
+}
+#endif
+
 MODULE = Package::Prototype    PACKAGE = Package::Prototype
 PROTOTYPES: DISABLE
 
@@ -201,3 +236,16 @@ PPCODE:
     ST(0) = sv_bless(ref, stash);
     XSRETURN(1);
 }
+
+void
+_install_checker(code, validator)
+    SV *code
+    SV *validator
+CODE:
+#if PERL_VERSION >= 16
+    if (!IsCodeRef(code) || !IsCodeRef(validator))
+        croak("Expected code references");
+    cv_set_call_checker((CV *)SvRV(code), checked_call, validator);
+#else
+    croak("Package::Prototype::Checked requires Perl 5.16 or later");
+#endif

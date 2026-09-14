@@ -14,5 +14,5 @@ jobs:
       - uses: shogo82148/actions-setup-perl@v1
         with:
           perl-version: ${{ matrix.perl }}
-      - run: cpanm --notest Module::Build::XSUtil Test::More Test::LeakTrace
+      - run: cpanm --notest Module::Build::XSUtil Test::More Test::LeakTrace Type::Tiny
       - run: perl Build.PL && ./Build && ./Build test
