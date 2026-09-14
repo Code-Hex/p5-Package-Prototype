@@ -7,6 +7,62 @@ our $VERSION = "0.01";
 use XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
 
+sub create {
+    my $class = shift;
+    die "create expects named options" if @_ % 2;
+    my %options = @_;
+    for my $key (keys %options) {
+        die "Unknown create option: $key"
+            unless $key eq 'properties' || $key eq 'methods' || $key eq 'classname';
+    }
+    my $properties = exists $options{properties} ? $options{properties} : {};
+    my $methods = exists $options{methods} ? $options{methods} : {};
+    die "properties must be a hash reference" unless ref($properties) eq 'HASH';
+    die "methods must be a hash reference" unless ref($methods) eq 'HASH';
+
+    my %installed;
+    my $install = sub {
+        my ($name, $code) = @_;
+        die "Method name must be a nonempty string"
+            if !defined($name) || ref($name) || !length($name);
+        die "Method name prototype is reserved by create" if $name eq 'prototype';
+        die "Duplicate method name: $name" if exists $installed{$name};
+        $installed{$name} = $code;
+    };
+    for my $name (sort keys %$methods) {
+        die "Method $name must be a code reference" unless ref($methods->{$name}) eq 'CODE';
+        $install->($name, $methods->{$name});
+    }
+    for my $name (sort keys %$properties) {
+        my $spec = $properties->{$name};
+        die "Property $name must be a hash reference" unless ref($spec) eq 'HASH';
+        for my $key (keys %$spec) {
+            die "Unknown property option: $key"
+                unless $key eq 'value' || $key eq 'reader' || $key eq 'writer';
+        }
+        die "Property $name requires value" unless exists $spec->{value};
+        my $value = $spec->{value};
+        my $reader = exists $spec->{reader} ? $spec->{reader} : $name;
+        $install->($reader, sub {
+            die "Reader $reader expects no arguments" unless @_ == 1;
+            return $value;
+        });
+        if (exists $spec->{writer}) {
+            my $writer = $spec->{writer};
+            $install->($writer, sub {
+                die "Writer $writer expects one argument" unless @_ == 2;
+                $value = $_[1];
+                return $value;
+            });
+        }
+    }
+    my $obj = exists $options{classname}
+        ? Package::Prototype::bless($class, {}, $options{classname})
+        : Package::Prototype::bless($class, {});
+    $obj->prototype(%installed);
+    return $obj;
+}
+
 1;
 __END__
 
@@ -106,6 +162,45 @@ This method can be used from the generated instance. By using this, it is possib
     $obj->add(3, 5); # 8
 
 =back
+
+=head1 EXPLICIT PROPERTIES
+
+C<create> separates stored values from executable methods:
+
+    my $obj = Package::Prototype->create(
+        properties => {
+            count => { value => 0, writer => 'set_count' },
+            callback => { value => sub { "done" } },
+        },
+        methods => {
+            increment => sub {
+                my $self = shift;
+                $self->set_count($self->count + 1);
+            },
+        },
+    );
+    $obj->increment;
+    my $callback = $obj->callback;
+    print $callback->();
+
+Each property requires C<value>, which may be C<undef> or any reference.
+C<reader> defaults to the property name. Supplying C<writer> creates an
+explicitly named setter; otherwise the property has no setter. Readers accept
+no arguments, writers accept one value and return the assigned value.
+
+Readers and writers share one private scalar per property per object. Values
+are shallowly copied: referenced arrays, hashes and objects remain shared.
+Readers always return that value, including in list context. In contrast,
+legacy C<bless> getters expand array and hash references in list context.
+A read-only property can still contain a mutable reference.
+
+C<methods> contains code references. Optional C<classname> labels the anonymous
+stash as with C<bless>. Input hashes are not modified. Duplicate method names,
+unknown options and the method name C<prototype> are rejected by C<create>.
+The existing C<bless> API still allows overriding C<prototype>.
+
+The resulting object supports C<prototype> for subsequent method replacement.
+Replacing a reader or writer replaces only that method, not its paired accessor.
 
 =head1 MODERN PERL
 
