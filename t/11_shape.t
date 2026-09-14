@@ -26,10 +26,17 @@ sub _invoke_perl {
 use strict;
 use warnings;
 use Types::Standard qw(Int ArrayRef);
-use Package::Prototype::Shape Counter => { count => [], set_count => [Int], values => [ArrayRef[Int]] };
+use Package::Prototype::Shape Counter => {
+    count     => [],
+    set_count => [Int],
+    values    => [ArrayRef[Int]],
+};
 my $value = 0;
 my Counter $counter = Counter->create(
- count => sub { $value }, set_count => sub { $value = $_[1] }, values => sub { $_[1] });
+    count     => sub { $value },
+    set_count => sub { $value = $_[1] },
+    values    => sub { $_[1] },
+);
 PRELUDE
     close $fh;
     my $err = gensym;
@@ -46,7 +53,7 @@ for my $source ('$counter->set_count("bad");', '$counter->set_count(undef);',
                 '$counter->count(1);', 'sub later { $counter->set_count("bad") }') {
     my ($status, $output) = compile_only($source);
     isnt($status, 0, 'annotated receiver rejects bad literal or arity');
-    like($output, qr/Compile-time (?:type|arity) error.*\.pl line 8/s, 'diagnostic has source');
+    like($output, qr/Compile-time (?:type|arity) error.*\.pl line 15/s, 'diagnostic has source');
 }
 for my $source ('$counter->set_count(1);', '$counter->values([1,2]);',
                 'my $v = "bad"; $counter->set_count($v);',
@@ -77,7 +84,15 @@ is($status, 0, 'no runtime execution under perl -c');
 unlike($output, qr/BODY EXECUTED/, 'no body side effect');
 ($status, $output) = execute_program(<<'SOURCE');
 use Package::Prototype::Shape Context => { result => [] };
-my Context $c = Context->create(result => sub { !defined(wantarray) ? print('V') : wantarray ? (1,2) : 'S' });
+my Context $c = Context->create(
+    result => sub {
+        if (!defined wantarray) {
+            print 'V';
+            return;
+        }
+        return wantarray ? (1, 2) : 'S';
+    }
+);
 print scalar($c->result);
 print join('', $c->result);
 $c->result;

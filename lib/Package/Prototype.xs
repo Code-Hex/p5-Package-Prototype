@@ -268,9 +268,14 @@ shape_call(pTHX_ OP *op)
     for (arg = OpSIBLING(receiver); arg != method; arg = OpSIBLING(arg)) {
         if (!arg) return op;
         switch (arg->op_type) {
-            case OP_CONST: case OP_PADSV: case OP_UNDEF:
-            case OP_ANONLIST: case OP_ANONHASH: break;
-            default: return op;
+            case OP_CONST:
+            case OP_PADSV:
+            case OP_UNDEF:
+            case OP_ANONLIST:
+            case OP_ANONHASH:
+                break;
+            default:
+                return op;
         }
         index++;
     }

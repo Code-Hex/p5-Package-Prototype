@@ -44,8 +44,11 @@ sub import {
                 die "Missing code for $method" unless ref($body) eq 'CODE';
                 my $checks = $validators{$method};
                 $wrapped{$method} = sub {
-                    die "$method expects " . @$checks . " arguments" unless @_ == @$checks + 1;
-                    for my $i (0 .. $#$checks) { $checks->[$i]->($_[$i + 1]) }
+                    die "$method expects " . @$checks . " arguments"
+                        unless @_ == @$checks + 1;
+                    for my $i (0 .. $#$checks) {
+                        $checks->[$i]->($_[$i + 1]);
+                    }
                     goto &$body;
                 };
             }
