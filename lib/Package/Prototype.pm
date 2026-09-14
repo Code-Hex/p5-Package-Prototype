@@ -129,9 +129,11 @@ specified by classname. Also, available as an object instance.
 =head1 EXPERIMENTAL COMPILE-TIME CHECKING
 
 L<Package::Prototype::Checked> provides opt-in typed identity functions with
-compile-time checks for known constants and runtime checks for dynamic values.
+checks for known constants under C<perl -c>. Opt into C<always> mode
+to also validate dynamic values at runtime.
 L<Package::Prototype::Shape> checks method arguments on native typed lexicals
-such as C<my Counter $obj>, with runtime wrappers supplied by its factory.
+such as C<my Counter $obj>. Its factory adds runtime wrappers only in
+C<always> mode.
 These are partial checks, not whole-program type inference. Existing APIs are
 unchanged. See C<docs/compile-time-types.md> and C<examples/checked/> in the
 source distribution for executable examples and the guarantee boundaries.

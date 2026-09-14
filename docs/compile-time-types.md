@@ -1,13 +1,14 @@
 # Experimental compile-time type checks
 
-These opt-in modules catch known type mismatches during compilation while
-checking unknown values at runtime. Existing `bless`, `create`,
+These modules default to `syntax` mode: known type mismatches are checked under
+`perl -c`, with no validation during ordinary execution. Select
+`{ mode => 'always' }` to also check during ordinary compilation and at runtime. Existing `bless`, `create`,
 and `prototype` behavior remains unchanged. Type::Tiny is used in the examples
 and test suite, but any type object implementing `assert_valid` is supported.
 
 ```perl
 use Types::Standard qw(Int);
-use Package::Prototype::Shape Counter => { count => [], set_count => [Int] };
+use Package::Prototype::Shape { mode => 'always' }, Counter => { count => [], set_count => [Int] };
 
 my $value = 0;
 my Counter $counter = Counter->create(
@@ -29,7 +30,7 @@ is not an `isa` relationship to the factory package.
 
 ```perl
 use Types::Standard qw(Int ArrayRef);
-use Package::Prototype::Checked
+use Package::Prototype::Checked { mode => 'always' },
     integer => Int,
     integers => ArrayRef[Int];
 
@@ -56,7 +57,26 @@ perl -Iblib/lib -Iblib/arch -c examples/checked/rejected.pl
 ./Build test
 ```
 
+## Check modes
+
+Without options (or with `{}`), both modules use `syntax`. Explicit
+`{ mode => 'syntax' }` has the same behavior. The examples that validate dynamic
+input above and below select `always` explicitly. Existing users who relied on
+runtime validation must add that option.
+
+In `syntax` mode, unknown inputs stay unchecked, including calls in BEGIN blocks.
+Shape installs the original CODE without a type/arity wrapper. Checked retains
+its scalar identity call and one-argument contract. Native signatures and
+constructor validation remain effective.
+
+Type libraries and type objects are still loaded and constructed at startup.
+Runtime `require` and string `eval` may load code that `perl -c` never sees;
+check those files separately.
+
 ## What is checked
+
+The following table describes `always` mode. In `syntax` mode the compile-time
+column applies only under `perl -c`; runtime validation is disabled.
 
 | Pattern | Compile time | Runtime |
 |---|---|---|
@@ -100,7 +120,7 @@ not save the user or create a Package::Prototype object.
 use v5.16;
 use warnings;
 use Types::Standard qw(Dict Int Str);
-use Package::Prototype::Checked
+use Package::Prototype::Checked { mode => 'always' },
     checked_user => Dict[
         user_id      => Int,
         display_name => Str,
@@ -165,7 +185,7 @@ Union types, Slurpy slots, and derived `Optional` types are conservatively defer
    stored in Perl package stashes rather than C-level interpreter pointers.
 5. **Compile-time rejection vs. runtime checks:** Unlike tools that compile
    type-assertion wrappers into function preludes for runtime execution, this
-   checker rejects invalid literal arguments during `perl -c`. Runtime wrappers
+   checker rejects invalid literal arguments during `perl -c`. In `always` mode, runtime wrappers
    act as fallback for deferred dynamic values.
 
 ### References
