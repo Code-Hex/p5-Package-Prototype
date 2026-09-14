@@ -503,7 +503,7 @@ CODE:
         MAGIC *accessor;
         HV *info;
         HE *field;
-        if (!isGV(value) || !(code = GvCV((GV *)value))) continue;
+        if (!isGV(value) || GvCVGEN((GV *)value) || !(code = GvCV((GV *)value))) continue;
         if (CvISXSUB(code) && CvXSUB(code) == XS_prototype_method) continue;
         info = (HV *)sv_2mortal((SV *)newHV());
         accessor = mg_findext((SV *)code, PERL_MAGIC_ext, &accessor_vtbl);

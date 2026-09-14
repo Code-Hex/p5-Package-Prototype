@@ -37,6 +37,11 @@ is(Package::Prototype->describe($legacy)->{members}{value}{kind}, 'method', 'val
 is(Package::Prototype->describe($legacy)->{members}{new_value}{kind}, 'value', 'undef is a value');
 my $named = Package::Prototype->bless({prototype => sub { 5 }});
 is(Package::Prototype->describe($named)->{members}{prototype}{kind}, 'method', 'user prototype method included');
+$legacy->can('isa');
+$legacy->isa('UNIVERSAL');
+$legacy->can('can');
+my $cached = Package::Prototype->describe($legacy)->{members};
+ok !exists($cached->{isa}) && !exists($cached->{can}), 'UNIVERSAL cache entries are not own members';
 my $same_label = Package::Prototype->bless({}, 'Counter');
 is(Package::Prototype->describe($same_label)->{members}, {}, 'same classname does not share metadata');
 for my $invalid (undef, {}, bless({}, 'Counter')) {
