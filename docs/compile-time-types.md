@@ -91,12 +91,45 @@ Structures nested beyond 64 levels are deferred to runtime.
 
 ## Partial structures
 
+A user has an integer ID and a display name supplied on the command line.
+`Dict` describes the required fields. The import creates a function named
+`checked_user`: it validates a hash reference and returns it unchanged. It does
+not save the user or create a Package::Prototype object.
+
 ```perl
-use Types::Standard qw(Int Str Dict);
-use Package::Prototype::Checked record => Dict[id => Int, name => Str];
-my $name = 'Alice';
-record({id => 'bad', name => $name}); # perl -c rejects the known invalid id.
+use v5.16;
+use warnings;
+use Types::Standard qw(Dict Int Str);
+use Package::Prototype::Checked
+    checked_user => Dict[
+        user_id      => Int,
+        display_name => Str,
+    ];
+
+my $user = checked_user({
+    user_id      => 42,
+    display_name => $ARGV[0],
+});
+
+print "$user->{user_id}: $user->{display_name}\n";
 ```
+
+Run the example after building the module:
+
+```sh
+perl -Iblib/lib -Iblib/arch -c examples/checked/user.pl
+perl -Iblib/lib -Iblib/arch examples/checked/user.pl Alice
+# Prints: 42: Alice
+```
+
+The compiler can check `user_id => 42`. It cannot know `$ARGV[0]`, so the display
+name is checked at runtime. Running without a name fails because `undef` does
+not satisfy `Str`.
+
+Now change `user_id => 42` to `user_id => 'not-an-integer'` and run `perl -c`
+again. Compilation fails on that call, even though the display name is still
+unknown. That is the partial check: an unknown field does not hide an error in
+a known field.
 
 The compiler AST separates known constants, unknown expressions, array elements,
 and hash entries. It never passes dummy or placeholder values to whole-value
