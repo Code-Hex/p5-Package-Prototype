@@ -250,7 +250,7 @@ it under the same terms as Perl itself.
 
 =head1 AUTHOR
 
-K E<lt>x00.x7f@gmail.comE<gt>
+K E<lt>perl@codehex.devE<gt>
 
 =cut
 
