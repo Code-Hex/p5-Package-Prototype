@@ -1,6 +1,8 @@
 Revision history for Perl extension Package-Prototype
 
 {{$NEXT}}
+    - Add experimental Checked functions and typed lexical Shape method checks.
+    - Check known scalar and reference literals during compilation; retain runtime validation.
 
 0.02 2026-09-14T09:13:38Z
 
