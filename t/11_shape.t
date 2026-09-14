@@ -72,4 +72,23 @@ $c->result;
 SOURCE
 is($status, 0, 'context wrapper runs');
 is($output, 'S12V', 'scalar list and void context preserved');
+($status, $output) = run_perl(<<'SOURCE', 0);
+use feature 'signatures';
+no warnings 'experimental::signatures';
+use Package::Prototype::Shape Pair => { sum => [Int, Int] };
+my Pair $p = Pair->create(sum => sub ($self, $x, $y) { $x + $y });
+use constant TWO => (1, 2);
+print $p->sum(TWO);
+SOURCE
+is($status, 0, 'native signatures and constant list expansion');
+is($output, '3', 'arguments preserved through wrapper');
+($status, $output) = run_perl(<<'SOURCE', 1);
+package Outer;
+use Types::Standard qw(Int);
+use Package::Prototype::Shape Local => { value => [Int] };
+my Outer::Local $local;
+$local->value("bad");
+SOURCE
+isnt($status, 0, 'qualified shape annotation checked');
+like($output, qr/Type check Outer::Local::value failed/, 'qualified diagnostic');
 done_testing;
