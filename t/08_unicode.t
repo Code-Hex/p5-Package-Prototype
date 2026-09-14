@@ -3,6 +3,7 @@ use warnings;
 use utf8;
 use Test::More;
 use Package::Prototype;
+BEGIN { plan skip_all => 'Unicode method names require Perl 5.36 or later in this module' if $] < 5.036 }
 my $obj = Package::Prototype->bless({ '名前' => '日本語', 'é' => 1 }, '例');
 is $obj->名前, '日本語', 'Unicode getter on creation';
 is $obj->é, 1, 'Latin-1 getter on creation';
