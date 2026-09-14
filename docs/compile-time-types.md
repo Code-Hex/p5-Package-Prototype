@@ -1,10 +1,9 @@
 # Experimental compile-time type checks
 
-The opt-in modules combine compile-time rejection of known invalid arguments
-with runtime checks for unknown values. They do not change `bless`, `create`, or
-`prototype` in existing applications. Type::Tiny is used in the examples and
-required for this distribution's tests, but is not a mandatory runtime dependency
-of Package::Prototype. Type objects must implement `assert_valid`.
+These opt-in modules catch known type mismatches during compilation while
+checking unknown values at runtime. Existing `bless`, `create`,
+and `prototype` behavior remains unchanged. Type::Tiny is used in the examples
+and test suite, but any type object implementing `assert_valid` is supported.
 
 ```perl
 use Types::Standard qw(Int);
@@ -73,45 +72,45 @@ perl -Iblib/lib -Iblib/arch -c examples/checked/rejected.pl
 | Unannotated alias or dynamic method name | Deferred | Factory wrapper, if still installed |
 | Reassignment, prototype replacement, return types | Not inferred | No receiver/return-type guarantee |
 
-Unknown is not the same as valid. `perl -c` succeeding is not a certificate of
-type safety. `my Counter` is a declaration used for checking, not a runtime cast.
-Reassigning the variable or replacing a method can invalidate that declaration.
-Replacing a method with `prototype` bypasses the factory's original runtime
-wrapper and leaves the declaration unchanged. Unlisted method names are left
-dynamic, so method-name typos are not rejected by this checker.
+Passing `perl -c` does not guarantee full type safety, as unverified dynamic
+values can still fail at runtime. The `my Counter` annotation is a compile-time
+declaration rather than a runtime type cast: reassigning the variable or
+dynamically replacing a method can invalidate it. Replacing a method via
+`prototype` bypasses the factory's runtime wrapper while leaving compile-time
+declarations unchanged. Unlisted method names remain dynamic, meaning misspelled
+method calls are not caught during compilation.
 
-Checks have runtime constraints' semantics: for example Type::Tiny `Int` accepts
-numeric strings such as `"42"`; it is not a JavaScript/TypeScript `number` type.
-Constraints must be deterministic and side-effect-free. They execute during
-compilation on private samples, including when a branch will not execute. Custom
-constraints that depend on environment, identity or changing state are unsuitable.
-There is no coercion. Mutable reference contents can change after validation.
-Nesting deeper than 64 levels is conservatively deferred.
+Compile-time checks evaluate the type constraint directly. For instance,
+Type::Tiny's `Int` accepts numeric strings like `"42"`. Because constraints run
+at compile time on reconstructed sample data—even inside unexecuted branches—they
+must be deterministic and free of side effects. Constraints that depend on
+environment variables, object identity, or external state are unsuitable. No type
+coercion is performed. Reference contents may change after validation.
+Structures nested beyond 64 levels are deferred to runtime.
 
-## Source investigation and design decisions
+## Design notes
 
-1. **Specific call checker.** Perl's `Perl_ck_entersub` resolves a CV before
-   invoking its call checker. `cv_set_call_checker` lets Checked attach validation
-   without installing a global hook for ordinary function calls. Normal dynamic
-   method dispatch does not reach that CV checker, so this alone was insufficient.
-2. **Literal OP inspection.** `B::Concise` exposed OP_CONST, OP_UNDEF, OP_ANONLIST
-   and OP_ANONHASH. A recursive allowlist reconstructs only literal data. Unknown
-   OPs are deferred; no source-string eval or execution of argument OPs is used.
-3. **Native typed pad names.** Core `Perl_check_hash_fields_and_hekify` uses
-   `PadnameTYPE` to check fields on annotated lexicals. Shape uses the same pad
-   metadata to select a declared method signature. This avoids guessing object
-   identity from preceding assignments or variable spelling.
-4. **Method hook.** Shape chains OP_ENTERSUB through `wrap_op_checker`. The previous
-   C hook pointer is process-global, following core's contract; signature values
-   remain Perl-owned in package hashes, without raw cross-interpreter SV pointers.
-5. **Runtime checks generated during compilation are different.**
-   Function::Parameters' `mktypecheckv` and function-prelude construction insert
-   checks executed when a function runs. This informed runtime fallback, but does
-   not by itself reject bad call sites under `perl -c`.
+1. **Function call checking:** In `Perl_ck_entersub`, Perl resolves a target CV
+   before running its call checker. Using `cv_set_call_checker` allows
+   `Package::Prototype::Checked` to validate arguments on specific identity
+   functions without registering a global hook for subroutine calls.
+2. **Safe literal reconstruction:** The checker inspects syntax trees for constant
+   opcodes (`OP_CONST`, `OP_UNDEF`, `OP_ANONLIST`, and `OP_ANONHASH`). Literals
+   are copied into private structures for verification; arbitrary opcodes and
+   argument expressions are never executed during compilation.
+3. **Lexical type pad metadata:** Core Perl verifies typed hash fields via
+   `PadnameTYPE` (`Perl_check_hash_fields_and_hekify`). `Shape` uses this same
+   pad metadata to bind annotated lexicals (`my Counter $obj`) to declared
+   method signatures.
+4. **Method dispatch hook:** Because dynamic method calls bypass CV checkers,
+   `Shape` wraps `OP_ENTERSUB` with `wrap_op_checker`. Signature metadata remains
+   stored in Perl package stashes rather than C-level interpreter pointers.
+5. **Compile-time rejection vs. runtime checks:** Unlike tools that compile
+   type-assertion wrappers into function preludes for runtime execution, this
+   checker rejects invalid literal arguments during `perl -c`. Runtime wrappers
+   act as fallback for deferred dynamic values.
 
-Sources inspected: Perl 5.44.0 `op.c` (Perl_ck_entersub,
-Perl_check_hash_fields_and_hekify, Perl_wrap_op_checker), `pad.h`, and
-Function::Parameters `Parameters.xs` (mktypecheckv and function prelude).
+### References
 
 - [Perl op.c](https://github.com/Perl/perl5/blob/v5.44.0/op.c)
 - [Perl pad.h](https://github.com/Perl/perl5/blob/v5.44.0/pad.h)
@@ -119,6 +118,8 @@ Function::Parameters `Parameters.xs` (mktypecheckv and function prelude).
 - [OP-checker API](https://perldoc.perl.org/5.44.0/perlapi#wrap_op_checker)
 - [Function::Parameters source](https://github.com/mauke/Function-Parameters/blob/master/Parameters.xs)
 
-Assignment-flow inference, branch merging, method-return inference and automatic
-prototype-shape evolution are intentionally outside this experiment. Thread
-cloning has not been exercised by the current runtime tests.
+### Scope and limitations
+
+Flow-sensitive type inference, branch merging, return-type analysis, and automatic
+shape transitions are outside the scope of this experiment. Thread cloning has
+not been verified.
