@@ -22,7 +22,7 @@ sub execute_program {
 sub _invoke_perl {
     my ($source, @switches) = @_;
     my ($fh, $file) = tempfile(SUFFIX => '.pl', UNLINK => 1);
-    print {$fh} "use strict; use warnings;\nuse Types::Standard qw(Int Str);\nuse Package::Prototype::Checked integer => Int, text => Str;\n", $source;
+    print {$fh} "use strict; use warnings;\nuse Types::Standard qw(Int Str ArrayRef HashRef);\nuse Package::Prototype::Checked integer => Int, text => Str, integers => ArrayRef[Int], table => HashRef[ArrayRef[Int]];\n", $source;
     close $fh;
     my $err = gensym;
     my $pid = open3(undef, my $out, $err, $^X,
@@ -64,4 +64,24 @@ isnt($status, 0, 'ampersand call runtime checked');
 ($status, $output) = execute_program('print integer(42), text("hello");');
 is($status, 0, 'runtime success');
 is($output, '42hello', 'identity functions preserve values');
+for my $source ('integer(undef)', 'integers([1, "bad"])',
+                'table({a => [1, "bad"]})') {
+    ($status, $output) = run_perl($source, 1);
+    isnt($status, 0, 'reject constant structure');
+    like($output, qr/Compile-time type error/, 'static diagnostic');
+}
+for my $source ('integer(1 + 2)', 'integers([])', 'integers([1, 2])',
+                'table({a => [1, 2]})') {
+    ($status, $output) = run_perl($source, 1);
+    is($status, 0, 'accept constant structure or folded expression');
+}
+for my $source ('my $v = "bad"; integers([1, $v]);',
+                'sub input { die "BODY EXECUTED" }; integers([input()]);',
+                'my @v = ("bad"); integers([@v]);') {
+    ($status, $output) = run_perl($source, 1);
+    is($status, 0, 'dynamic structures deferred');
+    unlike($output, qr/BODY EXECUTED/, 'no speculative evaluation');
+    ($status, $output) = run_perl($source, 0);
+    isnt($status, 0, 'dynamic structure fails at runtime');
+}
 done_testing;
