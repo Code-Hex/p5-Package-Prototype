@@ -3,6 +3,7 @@ use 5.022;
 use strict;
 use warnings;
 use Package::Prototype ();
+use Package::Prototype::_Validation ();
 use Scalar::Util qw(blessed);
 
 sub import {
@@ -23,11 +24,7 @@ sub import {
                 my $type = $_;
                 die "Expected a type object providing assert_valid"
                     unless blessed($type) && $type->can('assert_valid');
-                sub {
-                    my $ok = eval { $type->assert_valid($_[0]); 1 };
-                    die "Type check ${package}::$method failed: $@" unless $ok;
-                    return;
-                };
+                Package::Prototype::_Validation::validator($type, "${package}::$method");
             } @{$spec->{$method}}];
         }
         no strict 'refs';
@@ -80,27 +77,30 @@ Package::Prototype::Shape - Experimental typed lexical method checks
 
 =head1 CONTRACT
 
-Requires Perl 5.22. Registers package-scoped signatures before subsequent code
-is compiled. Native C<my Counter> annotations select the signature; they do not
-prove the runtime receiver has that shape. In a named package use the fully
-qualified generated name in the annotation and constructor.
+Requires Perl 5.22 or later. Registers method signatures in package scope at
+compile time. Method calls made directly on typed lexical variables (for example,
+C<my Counter $counter>) are inspected for valid arity and literal arguments
+during compilation. Outside C<main>, the shape name must be fully qualified
+in annotations and constructor calls (e.g. C<my App::Counter $counter>).
 
-Named calls on directly annotated lexical receivers check known literal
-arguments and arity. Calls with potential list expansion are entirely deferred.
-Unknown method names, dynamic names, aliases without annotations, reassignment,
-and return types are not analyzed. This is declaration-based checking, not
-whole-program inference. Scalar variables are not assumed to retain an earlier
-value. A successful C<perl -c> does not certify the program type-safe.
+Known arguments—including partial standard C<ArrayRef>, C<Tuple>, and C<Dict>
+structures—are validated as described in L<Package::Prototype::Checked>.
+Calls with potential list expansion are deferred to runtime. Method names not
+declared in the shape, dynamic method dispatch, unannotated aliases, and return values are not checked at compile time.
+Reassignments are not tracked: later calls still use the declared signature.
+The annotation does not prove that the runtime receiver has that shape.
 
-C<Counter-E<gt>create(name =E<gt> CODE, ...)> requires exactly the declared methods
-and adds runtime arity and argument checks, preserving caller context. The
-result is a Package::Prototype object; the shape name is not an inheritance
-relationship. C<prototype> may add or replace methods. Replacement bypasses the
-original runtime wrappers and does not update compile-time signatures.
+C<< Counter->create(name => CODE, ...) >> requires exactly the declared methods
+and creates an object with runtime wrappers
+enforcing method arity and argument types while preserving caller context
+(scalar, list, void) and supporting native subroutine signatures. The returned
+instance is a Package::Prototype object; shape names do not imply an inheritance
+relationship. Modifying methods later via C<prototype> replaces runtime wrappers
+without modifying compile-time signatures.
 
-Type objects must provide C<assert_valid>. Constraints run on copied constants
-during compilation and on actual values at runtime; use deterministic,
-side-effect-free constraints. No coercion is applied. Compile-time registration
-and checks execute under C<perl -c> like other C<use>/C<BEGIN> code.
+Type objects must implement C<assert_valid>. Constraints execute during
+compilation on literal copies and must be deterministic and side-effect-free.
+Coercion is not performed. Passing C<perl -c> checks literal arguments but does
+not guarantee runtime type safety for dynamic inputs.
 
 =cut

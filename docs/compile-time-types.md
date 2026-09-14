@@ -61,6 +61,7 @@ perl -Iblib/lib -Iblib/arch -c examples/checked/rejected.pl
 | Pattern | Compile time | Runtime |
 |---|---|---|
 | Direct Checked function, scalar literal or undef | Validate copy | Validate actual value |
+| Partial standard ArrayRef/Tuple/Dict with fixed positions/keys | Check known elements and fixed shape; defer unknown values | Validate whole value |
 | Constant nested array/hash reference | Validate reconstructed copy | Validate actual value |
 | Expression already folded by Perl | Validate resulting constant | Validate actual value |
 | Direct named method on annotated lexical | Check declared arity and known literal arguments | Factory wrapper validates arguments |
@@ -87,6 +88,30 @@ must be deterministic and free of side effects. Constraints that depend on
 environment variables, object identity, or external state are unsuitable. No type
 coercion is performed. Reference contents may change after validation.
 Structures nested beyond 64 levels are deferred to runtime.
+
+## Partial structures
+
+```perl
+use Types::Standard qw(Int Str Dict);
+use Package::Prototype::Checked record => Dict[id => Int, name => Str];
+my $name = 'Alice';
+record({id => 'bad', name => $name}); # perl -c rejects the known invalid id.
+```
+
+The compiler AST separates known constants, unknown expressions, array elements,
+and hash entries. It never passes dummy or placeholder values to whole-value
+constraints. Only canonical `Types::Standard` parameterizations of `ArrayRef`,
+`Tuple`, and `Dict` (verified via `strictly_equals`) are decomposed for partial
+checking. Custom type objects and subtypes with custom constraints are checked
+only when fully known or at runtime.
+
+Static validation requires literal keys and fixed-width scalar elements. The
+checker rejects missing required fields/elements as well as undeclared extra
+entries. Standard `Optional` slots may be omitted. Duplicate literal keys follow
+Perl's last-write-wins semantics, even if the final value is unknown. Dynamic
+keys or list-expanding expressions defer validation of the containing structure.
+A nested unknown structure does not stop checks on other fields in its parent.
+Union types, Slurpy slots, and derived `Optional` types are conservatively deferred when partially populated.
 
 ## Design notes
 
