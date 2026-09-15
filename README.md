@@ -253,6 +253,41 @@ method is omitted, but a user-defined method named `prototype` is included.
 Private hash storage and UNIVERSAL methods are not members. Only objects made
 by this module are supported. Type constraints are not inferred or exposed.
 
+# EXTRACTING VALUES
+
+    my $data = Package::Prototype->to_hash_ref($object);
+    my $selected = Package::Prototype->to_hash_ref($object,
+        fields => { total => 'get_count' },
+    );
+
+`to_hash_ref` returns a new, unblessed hash reference. By default, it includes
+explicit properties under their logical property names and legacy value
+getters under their callable names. It excludes ordinary methods, writers,
+private hash storage, and prototype metadata. Inherited readers are called on
+the supplied object, so the result contains that object's current values.
+Two readers producing the same output key cause an exception.
+
+Optional `fields` maps output keys to callable reader names. It selects and
+renames values, and can resolve ambiguous property names. An empty hash selects
+no values. Every selected name must be an existing property reader or legacy
+value getter; ordinary methods and writers are rejected. All selections are
+validated before any values are read. Readers are called in scalar context.
+
+Replacing a reader with an ordinary method removes it from automatic output.
+Explicitly selecting that replaced reader raises an exception. Replacing a
+writer does not remove its reader. Use `fields` for a fixed output schema.
+
+This is a shallow extraction: referenced arrays, hashes, objects, and code
+remain shared. `undef` and boolean values are preserved. Changing a top-level
+entry in the result does not assign a property, but mutating a shared reference
+can affect the original object. Cycles are not traversed or rejected.
+
+Unlike `describe`, extraction invokes readers. It is not an atomic snapshot
+and does not promise side-effect-free reads of magical values. Reader exceptions
+propagate. The result is not guaranteed to be accepted by a serializer; callers
+must handle unsupported values for their chosen format. No class, methods, or
+parent relationships are reconstructed from the result.
+
 # SEE ALSO
 
 [Package::Anon](https://metacpan.org/pod/Package%3A%3AAnon)
