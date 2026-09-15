@@ -130,30 +130,34 @@ sub to_hashref {
         if exists($options{fields}) && ref($options{fields}) ne 'HASH';
 
     my $members = _members($object);
-    my %readers = map { $_ => $members->{$_} } grep {
-        $members->{$_}{kind} eq 'value'
-            || ($members->{$_}{kind} eq 'property' && $members->{$_}{access} eq 'read')
-    } keys %$members;
     my %fields;
+    my @keys;
     if (exists $options{fields}) {
         %fields = %{$options{fields}};
-        for my $key (sort keys %fields) {
+        @keys = sort keys %fields;
+        for my $key (@keys) {
             my $reader = $fields{$key};
             die "Field $key requires a nonempty reader name"
                 if !defined($reader) || ref($reader) || !length($reader);
+            my $info = $members->{$reader};
             die "Field $key does not name a property reader or value getter: $reader"
-                unless exists $readers{$reader};
+                unless $info && ($info->{kind} eq 'value'
+                    || ($info->{kind} eq 'property' && $info->{access} eq 'read'));
         }
     } else {
-        for my $reader (sort keys %readers) {
-            my $info = $readers{$reader};
+        for my $reader (sort grep {
+            $members->{$_}{kind} eq 'value'
+                || ($members->{$_}{kind} eq 'property' && $members->{$_}{access} eq 'read')
+        } keys %$members) {
+            my $info = $members->{$reader};
             my $key = $info->{kind} eq 'property' ? $info->{property} : $reader;
             die "Duplicate output key: $key" if exists $fields{$key};
             $fields{$key} = $reader;
         }
+        @keys = sort keys %fields;
     }
     my %data;
-    for my $key (sort keys %fields) {
+    for my $key (@keys) {
         my $reader = $fields{$key};
         $data{$key} = scalar $object->$reader();
     }
