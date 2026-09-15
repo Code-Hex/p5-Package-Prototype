@@ -1,7 +1,7 @@
-[![Build Status](https://travis-ci.org/Code-Hex/p5-Package-Prototype.svg?branch=master)](https://travis-ci.org/Code-Hex/p5-Package-Prototype)
+[![Actions Status](https://github.com/Code-Hex/p5-Package-Prototype/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Code-Hex/p5-Package-Prototype/actions?workflow=test)
 # NAME
 
-Package::Prototype - Super easily to create prototype object
+Package::Prototype - Create objects with JavaScript-style prototypes
 
 # SYNOPSIS
 
@@ -18,7 +18,7 @@ Package::Prototype - Super easily to create prototype object
                 my ($self, $arg) = @_;
                 say "$arg, World";
             },
-            # It do not create a method if key is started at '_'
+            # Keys starting with '_' do not create methods.
             _data => "internal data"
         });
 
@@ -51,10 +51,12 @@ Package::Prototype - Super easily to create prototype object
 
 # DESCRIPTION
 
-Package::Prototype can create prototype object like javascript.
+Package::Prototype creates objects with JavaScript-style prototypes. You can
+define methods and properties on individual objects and derive new objects
+that delegate to a parent.
 
-This module can provide anonymous packages which are independent of the main namespace if not 
-specified by classname. Also, available as an object instance.
+Each object has its own anonymous package. An optional class name labels the
+package; objects with the same label still have independent method definitions.
 
 # EXPERIMENTAL COMPILE-TIME CHECKING
 
@@ -72,17 +74,17 @@ source distribution for executable examples and the guarantee boundaries.
 
 - `bless($ref :HashRef[, $classname :Str])`
 
-    Create a new anonymous package and an instance. The optional `$clasname` argument sets the
-    stash's name. `$classname` default is `__ANON__`.
+    Creates an object in a new anonymous package. The optional `$classname`
+    argument sets its label and defaults to `__ANON__`.
 
-    That instance also provide a method that will return values corresponding to keys that do not
-    start with '\_'.
+    Keys that do not start with `_` become methods. Code references are installed
+    as methods; other values get a getter with the same name as the key.
 
         my $obj = Package::Prototype->bless({
             foo => 10,
             bar => sub { say $_[1] },
 
-            # It do not create a method if key is started at '_'
+            # Keys starting with '_' do not create methods.
             _data => "internal data"
         });
 
@@ -93,7 +95,8 @@ source distribution for executable examples and the guarantee boundaries.
 
 - `prototype($key :Str => $val :Any, ...)`
 
-    This method can be used from the generated instance. By using this, it is possible to add new methods easily.
+    Adds or replaces methods on an object. Code references become methods; other
+    values become getters.
 
         $obj->prototype(add => sub {
             my $self = shift;
@@ -125,7 +128,7 @@ source distribution for executable examples and the guarantee boundaries.
 Each property requires `value`, which may be `undef` or any reference.
 `reader` defaults to the property name. Supplying `writer` creates an
 explicitly named setter; otherwise the property has no setter. Readers accept
-no arguments, writers accept one value and return the assigned value.
+no arguments. Writers accept one value and return the assigned value.
 
 Readers and writers share one private scalar per property per object. Values
 are shallowly copied: referenced arrays, hashes and objects remain shared.
@@ -172,19 +175,6 @@ On Perl 5.36 and later, Unicode property and method names are supported,
 including dynamic replacement. Earlier Perls are only tested with ASCII names.
 Use `use utf8` when writing non-ASCII names in source. On Perl 5.36 and later,
 getters preserve the boolean identity of `builtin::true` and `builtin::false`.
-
-# SEE ALSO
-
-[Package::Anon](https://metacpan.org/pod/Package%3A%3AAnon)
-
-[Plack::Util::Prototype](https://metacpan.org/pod/Plack%3A%3AUtil%3A%3APrototype)
-
-# LICENSE
-
-Copyright (C) K.
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
 
 # DERIVING AN OBJECT
 
@@ -262,6 +252,19 @@ code references. Editing the returned hashes cannot change the object.
 method is omitted, but a user-defined method named `prototype` is included.
 Private hash storage and UNIVERSAL methods are not members. Only objects made
 by this module are supported. Type constraints are not inferred or exposed.
+
+# SEE ALSO
+
+[Package::Anon](https://metacpan.org/pod/Package%3A%3AAnon)
+
+[Plack::Util::Prototype](https://metacpan.org/pod/Plack%3A%3AUtil%3A%3APrototype)
+
+# LICENSE
+
+Copyright (C) K.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
 
 # AUTHOR
 
