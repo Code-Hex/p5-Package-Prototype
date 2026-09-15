@@ -371,10 +371,14 @@ those wrappers, as it does on the parent.
 
 C<describe> returns a fresh hash containing C<classname> and C<members>.
 Members are keyed by their callable names. Each entry has C<kind> (C<method>,
-C<value>, or C<property>), C<own>, and C<depth>. Own entries have depth zero. Inherited entries have C<own> false and the
-number of parent links to the defining object in C<depth>. These fields describe
-method/accessor ownership; writing an inherited property does not make its
-accessor an own definition.
+C<value>, or C<property>), C<own>, and C<depth>.
+
+An own member has C<own> true and C<depth> zero. An inherited member has C<own>
+false; C<depth> counts the parent links to the object that defines it.
+
+Writing an inherited property stores a value on the child. Its reader and writer
+remain inherited, so their C<own> and C<depth> fields do not change.
+
 Explicit property accessors also report C<property> (the logical property name),
 C<access> (C<read> or C<write>), C<reader>, and C<writer> when declared.
 Reader/writer names describe the original declaration; either accessor can

@@ -243,10 +243,14 @@ those wrappers, as it does on the parent.
 
 `describe` returns a fresh hash containing `classname` and `members`.
 Members are keyed by their callable names. Each entry has `kind` (`method`,
-`value`, or `property`), `own`, and `depth`. Own entries have depth zero. Inherited entries have `own` false and the
-number of parent links to the defining object in `depth`. These fields describe
-method/accessor ownership; writing an inherited property does not make its
-accessor an own definition.
+`value`, or `property`), `own`, and `depth`.
+
+An own member has `own` true and `depth` zero. An inherited member has `own`
+false; `depth` counts the parent links to the object that defines it.
+
+Writing an inherited property stores a value on the child. Its reader and writer
+remain inherited, so their `own` and `depth` fields do not change.
+
 Explicit property accessors also report `property` (the logical property name),
 `access` (`read` or `write`), `reader`, and `writer` when declared.
 Reader/writer names describe the original declaration; either accessor can
