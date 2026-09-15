@@ -22,6 +22,7 @@ sub create {
     die "methods must be a hash reference" unless ref($methods) eq 'HASH';
 
     my %installed;
+    my $owner;
     my $install = sub {
         my ($name, $code) = @_;
         die "Method name must be a nonempty string"
@@ -43,10 +44,11 @@ sub create {
         }
         die "Property $name requires value" unless exists $spec->{value};
         my $value = $spec->{value};
+        my $cell = \$value;
         my $reader = exists $spec->{reader} ? $spec->{reader} : $name;
         my $reader_code = sub {
             die "Reader $reader expects no arguments" unless @_ == 1;
-            return $value;
+            return ${_property_cell($_[0], $cell, $owner)};
         };
         my %info = (kind => 'property', property => $name, reader => $reader);
         $info{writer} = $spec->{writer} if exists $spec->{writer};
@@ -56,8 +58,9 @@ sub create {
             my $writer = $spec->{writer};
             my $writer_code = sub {
                 die "Writer $writer expects one argument" unless @_ == 2;
-                $value = $_[1];
-                return $value;
+                my $destination = _property_cell($_[0], $cell, $owner, 1);
+                $$destination = $_[1];
+                return $$destination;
             };
             _annotate_accessor($writer_code, { %info, access => 'write' });
             $install->($writer, $writer_code);
@@ -66,8 +69,47 @@ sub create {
     my $obj = exists $options{classname}
         ? Package::Prototype::bless($class, {}, $options{classname})
         : Package::Prototype::bless($class, {});
+    $owner = "" . _metadata($obj);
     $obj->prototype(%installed);
     return $obj;
+}
+
+sub _property_cell {
+    my ($object, $cell, $owner, $write) = @_;
+    my $metadata = _accessor_metadata($object);
+    return $cell unless $metadata;
+    my $receiver = $metadata;
+    my $identity = $cell;
+    my $token = "$cell";
+    while ("$metadata" ne $owner) {
+        if ($metadata->{property_values} && exists $metadata->{property_values}{$token}) {
+            my $stored = $metadata->{property_values}{$token};
+            $cell = \$stored->[1];
+            last;
+        }
+        return $cell unless exists $metadata->{parent};
+        $metadata = _metadata($metadata->{parent});
+    }
+    if ($write && "$receiver" ne $owner) {
+        unless (exists $receiver->{property_values}{$token}) {
+            # Retain the token to prevent address reuse after an accessor replacement.
+            $receiver->{property_values}{$token} = [$identity, $$cell];
+        }
+        return \$receiver->{property_values}{$token}[1];
+    }
+    return $cell;
+}
+
+sub derive {
+    my $class = shift;
+    die "derive expects named options" if @_ % 2;
+    my %options = @_;
+    die "derive requires parent" unless exists $options{parent};
+    my $parent = delete $options{parent};
+    _metadata($parent);
+    my $child = $class->create(%options);
+    _link_parent($child, $parent);
+    return $child;
 }
 
 sub describe {
@@ -272,6 +314,55 @@ Copyright (C) K.
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
+=head1 DERIVING AN OBJECT
+
+    my $parent = Package::Prototype->create(
+        properties => { count => { value => 0, writer => 'set_count' } },
+        methods => { increment => sub { $_[0]->set_count($_[0]->count + 1) } },
+    );
+    my $child = Package::Prototype->derive(parent => $parent);
+    $child->increment;
+    print $child->count;  # 1
+    print $parent->count; # 0
+
+C<derive> accepts C<parent> plus the same options as C<create>. The parent must
+be an object made by this module. The child has its own anonymous stash; its
+optional C<classname> is a label, not an inheritance relationship. The parent
+is fixed at creation. Chains are limited to 256 parent links.
+
+Own members take precedence over inherited members. Adding or replacing a
+parent member with C<prototype> updates descendants until an own definition
+shadows that name. Inherited methods receive the child as C<$self>. Normal
+method dispatch, C<can>, caller context, exceptions, and native signatures are
+preserved. A saved C<can> reference retains the code it originally returned.
+Each child keeps its own built-in C<prototype> mutation method.
+
+Explicit property readers initially use the nearest ancestor's value. Writing
+through an inherited writer stores a value on the receiver; it does not change
+the parent or siblings. Later parent writes remain visible only to descendants
+that have not stored their own value. Each reader/writer pair has separate
+storage, even if another declaration uses the same logical property name.
+Replacing one accessor does not redefine its partner.
+
+Values are not deep-copied. Mutating an array or hash reference returned by a
+reader can affect other objects sharing that reference. Assign a new reference
+through the writer to give a child a separate value. User methods that capture
+external lexical state still share that state; delegation cannot isolate it.
+Legacy C<bless> value getters retain their existing scalar/list behavior.
+
+The implementation registers inherited CVs in each child and propagates updates
+at mutation time. Calls use Perl's normal dispatch; mutation cost grows with
+the number of affected descendants. Children retain their parents. Parent links
+to children are weak, so an otherwise unreachable child can be collected.
+Objects that store themselves in user values can still form reference cycles.
+Direct stash manipulation is unsupported; use C<prototype> for updates.
+Reblessing an object breaks its prototype relationships. Reblessed children
+stop receiving updates; ancestry inspection rejects a reblessed parent.
+
+Derivation does not create a new Shape declaration or infer types. Existing
+C<always> wrappers are inherited like other methods; replacing them bypasses
+those wrappers, as it does on the parent.
+
 =head1 OBJECT DESCRIPTION
 
     my $description = Package::Prototype->describe($object);
@@ -280,7 +371,14 @@ it under the same terms as Perl itself.
 
 C<describe> returns a fresh hash containing C<classname> and C<members>.
 Members are keyed by their callable names. Each entry has C<kind> (C<method>,
-C<value>, or C<property>), C<own>, and C<depth>. Own entries have depth zero.
+C<value>, or C<property>), C<own>, and C<depth>.
+
+An own member has C<own> true and C<depth> zero. An inherited member has C<own>
+false; C<depth> counts the parent links to the object that defines it.
+
+Writing an inherited property stores a value on the child. Its reader and writer
+remain inherited, so their C<own> and C<depth> fields do not change.
+
 Explicit property accessors also report C<property> (the logical property name),
 C<access> (C<read> or C<write>), C<reader>, and C<writer> when declared.
 Reader/writer names describe the original declaration; either accessor can

@@ -186,6 +186,55 @@ Copyright (C) K.
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
+# DERIVING AN OBJECT
+
+    my $parent = Package::Prototype->create(
+        properties => { count => { value => 0, writer => 'set_count' } },
+        methods => { increment => sub { $_[0]->set_count($_[0]->count + 1) } },
+    );
+    my $child = Package::Prototype->derive(parent => $parent);
+    $child->increment;
+    print $child->count;  # 1
+    print $parent->count; # 0
+
+`derive` accepts `parent` plus the same options as `create`. The parent must
+be an object made by this module. The child has its own anonymous stash; its
+optional `classname` is a label, not an inheritance relationship. The parent
+is fixed at creation. Chains are limited to 256 parent links.
+
+Own members take precedence over inherited members. Adding or replacing a
+parent member with `prototype` updates descendants until an own definition
+shadows that name. Inherited methods receive the child as `$self`. Normal
+method dispatch, `can`, caller context, exceptions, and native signatures are
+preserved. A saved `can` reference retains the code it originally returned.
+Each child keeps its own built-in `prototype` mutation method.
+
+Explicit property readers initially use the nearest ancestor's value. Writing
+through an inherited writer stores a value on the receiver; it does not change
+the parent or siblings. Later parent writes remain visible only to descendants
+that have not stored their own value. Each reader/writer pair has separate
+storage, even if another declaration uses the same logical property name.
+Replacing one accessor does not redefine its partner.
+
+Values are not deep-copied. Mutating an array or hash reference returned by a
+reader can affect other objects sharing that reference. Assign a new reference
+through the writer to give a child a separate value. User methods that capture
+external lexical state still share that state; delegation cannot isolate it.
+Legacy `bless` value getters retain their existing scalar/list behavior.
+
+The implementation registers inherited CVs in each child and propagates updates
+at mutation time. Calls use Perl's normal dispatch; mutation cost grows with
+the number of affected descendants. Children retain their parents. Parent links
+to children are weak, so an otherwise unreachable child can be collected.
+Objects that store themselves in user values can still form reference cycles.
+Direct stash manipulation is unsupported; use `prototype` for updates.
+Reblessing an object breaks its prototype relationships. Reblessed children
+stop receiving updates; ancestry inspection rejects a reblessed parent.
+
+Derivation does not create a new Shape declaration or infer types. Existing
+`always` wrappers are inherited like other methods; replacing them bypasses
+those wrappers, as it does on the parent.
+
 # OBJECT DESCRIPTION
 
     my $description = Package::Prototype->describe($object);
@@ -194,7 +243,14 @@ it under the same terms as Perl itself.
 
 `describe` returns a fresh hash containing `classname` and `members`.
 Members are keyed by their callable names. Each entry has `kind` (`method`,
-`value`, or `property`), `own`, and `depth`. Own entries have depth zero.
+`value`, or `property`), `own`, and `depth`.
+
+An own member has `own` true and `depth` zero. An inherited member has `own`
+false; `depth` counts the parent links to the object that defines it.
+
+Writing an inherited property stores a value on the child. Its reader and writer
+remain inherited, so their `own` and `depth` fields do not change.
+
 Explicit property accessors also report `property` (the logical property name),
 `access` (`read` or `write`), `reader`, and `writer` when declared.
 Reader/writer names describe the original declaration; either accessor can

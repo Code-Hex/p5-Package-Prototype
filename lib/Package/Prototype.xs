@@ -71,10 +71,45 @@ prototype_gv_sv(pTHX_ HV *stash, SV *namesv)
     return prototype_gv_pvn(aTHX_ stash, namepv, namelen, flag);
 }
 
-static void
-add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
+static HV *
+stash_metadata(pTHX_ HV *stash)
 {
+    MAGIC *magic = mg_findext((SV *)stash, PERL_MAGIC_ext, &object_vtbl);
+    return magic ? (HV *)magic->mg_obj : NULL;
+}
+
+static HV *
+inherited_members(pTHX_ HV *metadata)
+{
+    SV **entry = hv_fetch(metadata, "inherited", 9, 0);
+    if (!entry) {
+        hv_store(metadata, "inherited", 9, newRV_noinc((SV *)newHV()), 0);
+        entry = hv_fetch(metadata, "inherited", 9, 0);
+    }
+    return (HV *)SvRV(*entry);
+}
+
+static int
+has_member(pTHX_ HV *stash, SV *name)
+{
+    HE *entry = hv_fetch_ent(stash, name, 0, 0);
+    SV *value = entry ? HeVAL(entry) : NULL;
+    return value && isGV(value) && !GvCVGEN((GV *)value) && GvCV((GV *)value);
+}
+
+static void
+install_method(pTHX_ HV *stash, SV *method, CV *code, int own)
+{
+    HV *metadata = stash_metadata(aTHX_ stash);
     GV *gv;
+    SV **children;
+    /* A replaced closure can own other objects; pin the new CV during updates. */
+    sv_2mortal(SvREFCNT_inc((SV *)code));
+    if (metadata) {
+        HV *inherited = inherited_members(aTHX_ metadata);
+        if (own) hv_delete_ent(inherited, method, G_DISCARD, 0);
+        else hv_store_ent(inherited, method, newSViv(1), 0);
+    }
     gv = prototype_gv_sv(aTHX_ stash, method);
     GvCV_set(gv, code);
     hv_store_ent(stash, method, (SV *)gv, 0);
@@ -83,6 +118,32 @@ add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
 #else
     PL_sub_generation++;
 #endif
+    if (metadata && (children = hv_fetch(metadata, "children", 8, 0))) {
+        AV *list = (AV *)SvRV(*children);
+        I32 i;
+        sv_2mortal(SvREFCNT_inc((SV *)list));
+        for (i = 0; i <= av_len(list); i++) {
+            SV **child = av_fetch(list, i, 0);
+            HV *child_stash, *child_meta;
+            SV **parent;
+            if (!child || !SvROK(*child)) continue;
+            sv_2mortal(newSVsv(*child));
+            child_stash = SvSTASH(SvRV(*child));
+            child_meta = stash_metadata(aTHX_ child_stash);
+            if (!child_meta) continue; /* The object may have been reblessed. */
+            parent = hv_fetch(child_meta, "parent", 6, 0);
+            if (!parent || !SvROK(*parent) || SvSTASH(SvRV(*parent)) != stash) continue;
+            if (!has_member(aTHX_ child_stash, method)
+                || hv_exists_ent(inherited_members(aTHX_ child_meta), method, 0))
+                install_method(aTHX_ child_stash, method, (CV *)SvREFCNT_inc((SV *)code), 0);
+        }
+    }
+}
+
+static void
+add_method_sv(pTHX_ HV *stash, SV *method, CV *code)
+{
+    install_method(aTHX_ stash, method, code, 1);
 }
 
 static CV *
@@ -515,10 +576,93 @@ CODE:
             MAGIC *getter = mg_findext((SV *)code, PERL_MAGIC_ext, &getter_vtbl);
             hv_store(info, "kind", 4, newSVpv(getter ? "value" : "method", 0), 0);
         }
-        hv_store(info, "own", 3, newSViv(1), 0);
-        hv_store(info, "depth", 5, newSViv(0), 0);
+        {
+            HV *owner = stash;
+            I32 depth = 0;
+            while (1) {
+                HV *owner_meta = stash_metadata(aTHX_ owner);
+                SV **parent;
+                if (!owner_meta) croak("Prototype parent has been reblessed");
+                if (!hv_exists_ent(inherited_members(aTHX_ owner_meta), hv_iterkeysv(entry), 0)) break;
+                parent = hv_fetch(owner_meta, "parent", 6, 0);
+                if (!parent) break;
+                owner = SvSTASH(SvRV(*parent));
+                depth++;
+            }
+            hv_store(info, "own", 3, newSViv(depth == 0), 0);
+            hv_store(info, "depth", 5, newSViv(depth), 0);
+        }
         hv_store_ent(members, hv_iterkeysv(entry), newRV_inc((SV *)info), 0);
     }
     RETVAL = newRV_inc((SV *)members);
+OUTPUT:
+    RETVAL
+
+void
+_link_parent(child, parent)
+    SV *child
+    SV *parent
+PREINIT:
+    HV *child_meta, *parent_meta, *child_stash, *parent_stash;
+    SV **entry;
+    AV *children, *live;
+    HE *member;
+    I32 i, depth;
+    SV *ancestor;
+CODE:
+    child_meta = object_metadata(aTHX_ child);
+    parent_meta = object_metadata(aTHX_ parent);
+    if (hv_exists(child_meta, "parent", 6)) croak("Parent already set");
+    ancestor = parent;
+    for (depth = 0; ; depth++) {
+        if (SvRV(ancestor) == SvRV(child)) croak("Prototype cycle");
+        if (depth >= 256) croak("Prototype chain exceeds 256 parent links");
+        entry = hv_fetch(object_metadata(aTHX_ ancestor), "parent", 6, 0);
+        if (!entry) break;
+        ancestor = *entry;
+    }
+    hv_store(child_meta, "parent", 6, newSVsv(parent), 0);
+    /* Keep only live weak links when adding another child. */
+    live = (AV *)sv_2mortal((SV *)newAV());
+    entry = hv_fetch(parent_meta, "children", 8, 0);
+    if (entry) {
+        children = (AV *)SvRV(*entry);
+        for (i = 0; i <= av_len(children); i++) {
+            SV **existing = av_fetch(children, i, 0);
+            if (existing && SvROK(*existing)) {
+                SV *weak = newSVsv(*existing);
+                sv_rvweaken(weak);
+                av_push(live, weak);
+            }
+        }
+    }
+    {
+        SV *weak = newSVsv(child);
+        sv_rvweaken(weak);
+        av_push(live, weak);
+    }
+    hv_store(parent_meta, "children", 8, newRV_inc((SV *)live), 0);
+    child_stash = SvSTASH(SvRV(child));
+    parent_stash = SvSTASH(SvRV(parent));
+    hv_iterinit(parent_stash);
+    while ((member = hv_iternext(parent_stash))) {
+        SV *value = HeVAL(member);
+        SV *name = hv_iterkeysv(member);
+        CV *code;
+        if (!isGV(value) || GvCVGEN((GV *)value) || !(code = GvCV((GV *)value))) continue;
+        if (CvISXSUB(code) && CvXSUB(code) == XS_prototype_method) continue;
+        if (has_member(aTHX_ child_stash, name)) continue;
+        install_method(aTHX_ child_stash, name, (CV *)SvREFCNT_inc((SV *)code), 0);
+    }
+
+SV *
+_accessor_metadata(object)
+    SV *object
+PREINIT:
+    HV *metadata;
+CODE:
+    metadata = SvROK(object) && SvOBJECT(SvRV(object))
+        ? stash_metadata(aTHX_ SvSTASH(SvRV(object))) : NULL;
+    RETVAL = metadata ? newRV_inc((SV *)metadata) : newSV(0);
 OUTPUT:
     RETVAL
