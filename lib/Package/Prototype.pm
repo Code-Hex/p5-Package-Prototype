@@ -118,6 +118,52 @@ sub describe {
     return { classname => ref($object), members => _members($object) };
 }
 
+sub to_hashref {
+    my $class = shift;
+    die "to_hashref expects an object and named options" unless @_ && @_ % 2;
+    my $object = shift;
+    my %options = @_;
+    for my $key (keys %options) {
+        die "Unknown to_hashref option: $key" unless $key eq 'fields';
+    }
+    die "fields must be a hash reference"
+        if exists($options{fields}) && ref($options{fields}) ne 'HASH';
+
+    my $members = _members($object);
+    my %fields;
+    my @keys;
+    if (exists $options{fields}) {
+        %fields = %{$options{fields}};
+        @keys = sort keys %fields;
+        for my $key (@keys) {
+            my $reader = $fields{$key};
+            die "Field $key requires a nonempty reader name"
+                if !defined($reader) || ref($reader) || !length($reader);
+            my $info = $members->{$reader};
+            die "Field $key does not name a property reader or value getter: $reader"
+                unless $info && ($info->{kind} eq 'value'
+                    || ($info->{kind} eq 'property' && $info->{access} eq 'read'));
+        }
+    } else {
+        for my $reader (sort grep {
+            $members->{$_}{kind} eq 'value'
+                || ($members->{$_}{kind} eq 'property' && $members->{$_}{access} eq 'read')
+        } keys %$members) {
+            my $info = $members->{$reader};
+            my $key = $info->{kind} eq 'property' ? $info->{property} : $reader;
+            die "Duplicate output key: $key" if exists $fields{$key};
+            $fields{$key} = $reader;
+        }
+        @keys = sort keys %fields;
+    }
+    my %data;
+    for my $key (@keys) {
+        my $reader = $fields{$key};
+        $data{$key} = scalar $object->$reader();
+    }
+    return \%data;
+}
+
 1;
 __END__
 
@@ -380,6 +426,41 @@ C<prototype> replacements are reflected immediately. The built-in mutation
 method is omitted, but a user-defined method named C<prototype> is included.
 Private hash storage and UNIVERSAL methods are not members. Only objects made
 by this module are supported. Type constraints are not inferred or exposed.
+
+=head1 EXTRACTING VALUES
+
+    my $data = Package::Prototype->to_hashref($object);
+    my $selected = Package::Prototype->to_hashref($object,
+        fields => { total => 'get_count' },
+    );
+
+C<to_hashref> returns a new, unblessed hash reference. By default, it includes
+explicit properties under their logical property names and legacy value
+getters under their callable names. It excludes ordinary methods, writers,
+private hash storage, and prototype metadata. Inherited readers are called on
+the supplied object, so the result contains that object's current values.
+Two readers producing the same output key cause an exception.
+
+Optional C<fields> maps output keys to callable reader names. It selects and
+renames values, and can resolve ambiguous property names. An empty hash selects
+no values. Every selected name must be an existing property reader or legacy
+value getter; ordinary methods and writers are rejected. All selections are
+validated before any values are read. Readers are called in scalar context.
+
+Replacing a reader with an ordinary method removes it from automatic output.
+Explicitly selecting that replaced reader raises an exception. Replacing a
+writer does not remove its reader. Use C<fields> for a fixed output schema.
+
+This is a shallow extraction: referenced arrays, hashes, objects, and code
+remain shared. C<undef> and boolean values are preserved. Changing a top-level
+entry in the result does not assign a property, but mutating a shared reference
+can affect the original object. Cycles are not traversed or rejected.
+
+Unlike C<describe>, extraction invokes readers. It is not an atomic snapshot
+and does not promise side-effect-free reads of magical values. Reader exceptions
+propagate. The result is not guaranteed to be accepted by a serializer; callers
+must handle unsupported values for their chosen format. No class, methods, or
+parent relationships are reconstructed from the result.
 
 =head1 SEE ALSO
 
