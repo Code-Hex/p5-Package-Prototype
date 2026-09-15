@@ -1,5 +1,5 @@
 {
-   "abstract" : "Super easily to create prototype object",
+   "abstract" : "Create objects with JavaScript-style prototypes",
    "author" : [
       "K <perl@codehex.dev>"
    ],
