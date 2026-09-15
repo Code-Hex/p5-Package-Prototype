@@ -118,13 +118,13 @@ sub describe {
     return { classname => ref($object), members => _members($object) };
 }
 
-sub to_hash_ref {
+sub to_hashref {
     my $class = shift;
-    die "to_hash_ref expects an object and named options" unless @_ && @_ % 2;
+    die "to_hashref expects an object and named options" unless @_ && @_ % 2;
     my $object = shift;
     my %options = @_;
     for my $key (keys %options) {
-        die "Unknown to_hash_ref option: $key" unless $key eq 'fields';
+        die "Unknown to_hashref option: $key" unless $key eq 'fields';
     }
     die "fields must be a hash reference"
         if exists($options{fields}) && ref($options{fields}) ne 'HASH';
@@ -425,12 +425,12 @@ by this module are supported. Type constraints are not inferred or exposed.
 
 =head1 EXTRACTING VALUES
 
-    my $data = Package::Prototype->to_hash_ref($object);
-    my $selected = Package::Prototype->to_hash_ref($object,
+    my $data = Package::Prototype->to_hashref($object);
+    my $selected = Package::Prototype->to_hashref($object,
         fields => { total => 'get_count' },
     );
 
-C<to_hash_ref> returns a new, unblessed hash reference. By default, it includes
+C<to_hashref> returns a new, unblessed hash reference. By default, it includes
 explicit properties under their logical property names and legacy value
 getters under their callable names. It excludes ordinary methods, writers,
 private hash storage, and prototype metadata. Inherited readers are called on

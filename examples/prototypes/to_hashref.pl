@@ -7,8 +7,8 @@ my $parent = Package::Prototype->create(properties => {
 });
 my $child = Package::Prototype->derive(parent => $parent);
 $child->set_count(3);
-my $data = Package::Prototype->to_hash_ref($child);
-my $renamed = Package::Prototype->to_hash_ref($child,
+my $data = Package::Prototype->to_hashref($child);
+my $renamed = Package::Prototype->to_hashref($child,
     fields => {total => 'get_count'},
 );
 die 'Unexpected extracted values' unless $data->{count} == 3 && $renamed->{total} == 3;

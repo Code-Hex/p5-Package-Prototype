@@ -1,7 +1,7 @@
 Revision history for Perl extension Package-Prototype
 
 {{$NEXT}}
-    - Add to_hash_ref() for shallow value extraction with optional field selection.
+    - Add to_hashref() for shallow value extraction with optional field selection.
     - Validate known elements of partial standard ArrayRef, Tuple and Dict values.
     - Add experimental Typed functions and typed lexical Shape method checks.
     - Check known scalar and reference literals under perl -c by default; opt into runtime validation with always.

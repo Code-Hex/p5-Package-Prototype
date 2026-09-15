@@ -255,12 +255,12 @@ by this module are supported. Type constraints are not inferred or exposed.
 
 # EXTRACTING VALUES
 
-    my $data = Package::Prototype->to_hash_ref($object);
-    my $selected = Package::Prototype->to_hash_ref($object,
+    my $data = Package::Prototype->to_hashref($object);
+    my $selected = Package::Prototype->to_hashref($object,
         fields => { total => 'get_count' },
     );
 
-`to_hash_ref` returns a new, unblessed hash reference. By default, it includes
+`to_hashref` returns a new, unblessed hash reference. By default, it includes
 explicit properties under their logical property names and legacy value
 getters under their callable names. It excludes ordinary methods, writers,
 private hash storage, and prototype metadata. Inherited readers are called on
