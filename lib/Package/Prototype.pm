@@ -44,17 +44,23 @@ sub create {
         die "Property $name requires value" unless exists $spec->{value};
         my $value = $spec->{value};
         my $reader = exists $spec->{reader} ? $spec->{reader} : $name;
-        $install->($reader, sub {
+        my $reader_code = sub {
             die "Reader $reader expects no arguments" unless @_ == 1;
             return $value;
-        });
+        };
+        my %info = (kind => 'property', property => $name, reader => $reader);
+        $info{writer} = $spec->{writer} if exists $spec->{writer};
+        _annotate_accessor($reader_code, { %info, access => 'read' });
+        $install->($reader, $reader_code);
         if (exists $spec->{writer}) {
             my $writer = $spec->{writer};
-            $install->($writer, sub {
+            my $writer_code = sub {
                 die "Writer $writer expects one argument" unless @_ == 2;
                 $value = $_[1];
                 return $value;
-            });
+            };
+            _annotate_accessor($writer_code, { %info, access => 'write' });
+            $install->($writer, $writer_code);
         }
     }
     my $obj = exists $options{classname}
@@ -62,6 +68,12 @@ sub create {
         : Package::Prototype::bless($class, {});
     $obj->prototype(%installed);
     return $obj;
+}
+
+sub describe {
+    my ($class, $object) = @_;
+    die "describe expects one object" unless @_ == 2;
+    return { classname => ref($object), members => _members($object) };
 }
 
 1;
@@ -259,6 +271,27 @@ Copyright (C) K.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=head1 OBJECT DESCRIPTION
+
+    my $description = Package::Prototype->describe($object);
+    my $members = $description->{members};
+    print $members->{count}{kind}; # property
+
+C<describe> returns a fresh hash containing C<classname> and C<members>.
+Members are keyed by their callable names. Each entry has C<kind> (C<method>,
+C<value>, or C<property>), C<own>, and C<depth>. Own entries have depth zero.
+Explicit property accessors also report C<property> (the logical property name),
+C<access> (C<read> or C<write>), C<reader>, and C<writer> when declared.
+Reader/writer names describe the original declaration; either accessor can
+subsequently be replaced independently.
+
+Inspection never calls methods or getters and does not return stored values or
+code references. Editing the returned hashes cannot change the object.
+C<prototype> replacements are reflected immediately. The built-in mutation
+method is omitted, but a user-defined method named C<prototype> is included.
+Private hash storage and UNIVERSAL methods are not members. Only objects made
+by this module are supported. Type constraints are not inferred or exposed.
 
 =head1 AUTHOR
 

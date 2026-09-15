@@ -186,6 +186,27 @@ Copyright (C) K.
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
 
+# OBJECT DESCRIPTION
+
+    my $description = Package::Prototype->describe($object);
+    my $members = $description->{members};
+    print $members->{count}{kind}; # property
+
+`describe` returns a fresh hash containing `classname` and `members`.
+Members are keyed by their callable names. Each entry has `kind` (`method`,
+`value`, or `property`), `own`, and `depth`. Own entries have depth zero.
+Explicit property accessors also report `property` (the logical property name),
+`access` (`read` or `write`), `reader`, and `writer` when declared.
+Reader/writer names describe the original declaration; either accessor can
+subsequently be replaced independently.
+
+Inspection never calls methods or getters and does not return stored values or
+code references. Editing the returned hashes cannot change the object.
+`prototype` replacements are reflected immediately. The built-in mutation
+method is omitted, but a user-defined method named `prototype` is included.
+Private hash storage and UNIVERSAL methods are not members. Only objects made
+by this module are supported. Type constraints are not inferred or exposed.
+
 # AUTHOR
 
 K <perl@codehex.dev>
